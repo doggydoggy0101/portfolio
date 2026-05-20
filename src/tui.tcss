@@ -1,0 +1,98 @@
+/* Personal investing copilot — Tokyo Night Storm themed TUI styles. */
+
+Screen {
+    background: #24283b;
+    color: #c0caf5;
+}
+
+#main {
+    height: 100%;
+    padding: 1;
+}
+#left {
+    width: 1fr;
+}
+PerformancePane {
+    height: 5fr;
+    background: #1f2335;
+    border: round #7aa2f7;
+}
+
+/* Bottom-left: Open Orders pane with Buy/Sell sub-tabs */
+#orders {
+    height: 8fr;
+    background: #1f2335;
+    border: round #7aa2f7;
+}
+#orders #orders-tabs Tabs {
+    background: #1d202f;
+}
+#orders #orders-tabs Tab {
+    color: #565f89;
+}
+#orders #orders-tabs Tab.-active {
+    color: $foreground;
+    background: $accent;
+    text-style: bold;
+}
+#orders #orders-tabs TabPane {
+    height: 1fr;
+    padding: 0;
+}
+
+/* Right column: Position / Holdings / Watchlist tabs */
+#right-tabs {
+    width: 1fr;
+    max-width: 64;
+    margin-left: 1;
+    background: #1f2335;
+    border: round #7aa2f7;
+}
+#right-tabs Tabs {
+    background: #1d202f;
+}
+#right-tabs Tabs Tab {
+    color: #565f89;
+}
+#right-tabs Tabs Tab.-active {
+    color: $foreground;
+    background: $accent;
+    text-style: bold;
+}
+#right-tabs TabPane {
+    height: 1fr;
+    padding: 0;
+}
+
+.scroll-pane {
+    background: #1f2335;
+    padding: 1;
+}
+StockChartItem {
+    height: 9;
+    background: #1f2335;
+    border: round #7aa2f7;
+    margin-bottom: 1;
+}
+
+/* Holdings/Watchlist inner range-selector tabs */
+HoldingsView {
+    height: 100%;
+}
+HoldingsView > #range-tabs {
+    background: #1d202f;
+}
+HoldingsView > #range-tabs Tab {
+    color: #565f89;
+}
+HoldingsView > #range-tabs Tab.-active {
+    color: $foreground;
+    background: $accent;
+    text-style: bold;
+}
+HoldingsView > #charts-scroll {
+    height: 1fr;
+}
+
+Header { background: #1d202f; color: #c0caf5; }
+Footer { background: #1d202f; color: #c0caf5; }

@@ -1,0 +1,254 @@
+"""Terminal UI — see CLAUDE.md for the full layout diagram."""
+
+import pandas as pd
+from textual.app import App, ComposeResult
+from textual.containers import Horizontal, Vertical, VerticalScroll
+from textual.theme import Theme
+from textual.widgets import Footer, Header, Static, Tab, TabbedContent, TabPane, Tabs
+from textual_plotext import PlotextPlot
+
+import chart
+import performance
+from loader import load_deposits, load_orders, load_transactions, load_watchlist
+from orders import build_orders_table
+from portfolio import compute_positions
+from positions import build_position_view, build_positions_table
+from prices import fetch_ath
+
+# Tokyo Night Storm palette as RGB tuples — plotext doesn't honor hex strings.
+TN_STORM = {
+    "panel_bg": (31, 35, 53),  # #1f2335
+    "fg": (192, 202, 245),  # #c0caf5
+    "blue": (122, 162, 247),  # #7aa2f7
+    "orange": (255, 158, 100),  # #ff9e64
+    "red": (247, 118, 142),  # #f7768e
+    "green": (158, 206, 106),  # #9ece6a
+}
+
+PERF_THEME = {
+    "portfolio": TN_STORM["blue"],
+    "benchmarks": {"SPY": TN_STORM["orange"]},
+    "plotext_theme": "clear",
+    "canvas_color": TN_STORM["panel_bg"],
+    "axes_color": TN_STORM["panel_bg"],
+    "ticks_color": TN_STORM["fg"],
+}
+
+TOKYO_NIGHT_STORM = Theme(
+    name="tokyo-night-storm",
+    primary="#7aa2f7",
+    secondary="#bb9af7",
+    accent="#7aa2f7",
+    foreground="#c0caf5",
+    background="#24283b",
+    surface="#1f2335",
+    panel="#1d202f",
+    success="#9ece6a",
+    warning="#e0af68",
+    error="#f7768e",
+    dark=True,
+)
+
+CHART_THEME = {
+    "up_color": TN_STORM["green"],
+    "down_color": TN_STORM["red"],
+    "plotext_theme": "clear",
+    "canvas_color": TN_STORM["panel_bg"],
+    "axes_color": TN_STORM["panel_bg"],
+    "ticks_color": TN_STORM["fg"],
+}
+
+
+class PerformancePane(PlotextPlot):
+    """Top-left: portfolio TWR vs S&P 500 since inception."""
+
+    def on_mount(self) -> None:
+        self.theme = "clear"
+        performance.render_performance(self.plt, "max", theme=PERF_THEME)
+
+
+class StockChartItem(PlotextPlot):
+    """One per-stock chart inside the Holdings/Watchlist tab. Range set at construction."""
+
+    def __init__(
+        self,
+        ticker: str,
+        range_: str = "1d",
+        ath: float | None = None,
+        hist: pd.DataFrame | None = None,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self.ticker = ticker
+        self._range = range_
+        self._ath = ath
+        self._hist = hist  # if provided, skips per-widget network fetch
+
+    def on_mount(self) -> None:
+        self.theme = "clear"
+        self.border_title = f"{self.ticker}  (${self._ath:,.2f})" if self._ath else self.ticker
+        chart.render_chart(self.plt, self.ticker, self._range, theme=CHART_THEME, hist=self._hist)
+
+
+class OrdersView(Vertical):
+    """Bottom-left: pending orders, split into Buy / Sell tabs (Sell active by default)."""
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self._positions: pd.DataFrame | None = None
+        self._ath: dict[str, float] = {}
+
+    def compose(self) -> ComposeResult:
+        with TabbedContent(initial="tab-sell", id="orders-tabs"):
+            with TabPane("Order Buy", id="tab-buy"):
+                yield VerticalScroll(id="buy-scroll", classes="scroll-pane")
+            with TabPane("Order Sell", id="tab-sell"):
+                yield VerticalScroll(id="sell-scroll", classes="scroll-pane")
+
+    def populate(self, positions: pd.DataFrame, ath: dict[str, float]) -> None:
+        """Wire data in. Called from `StockTUI.on_mount` after ATH is fetched."""
+        self._positions = positions
+        self._ath = ath
+        orders = load_orders()
+        self.query_one("#buy-scroll", VerticalScroll).mount(
+            Static(build_orders_table(orders, "buy", positions=positions, ath=ath))
+        )
+        self.query_one("#sell-scroll", VerticalScroll).mount(
+            Static(build_orders_table(orders, "sell", positions=positions, ath=ath))
+        )
+
+
+class HoldingsView(Vertical):
+    """Holdings tab content: range-selector tabs + scrollable chart list."""
+
+    RANGES = ["1d", "5d", "15d", "1m", "3m", "6m", "1y", "max"]
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self._current_range = "1d"
+        self._ath: dict[str, float] = {}
+        # {ticker: pre-fetched history DataFrame} for the current range.
+        self._chart_data: dict[str, pd.DataFrame] = {}
+
+    def compose(self) -> ComposeResult:
+        yield Tabs(*(Tab(r, id=f"range-{r}") for r in self.RANGES), id="range-tabs")
+        yield VerticalScroll(id="charts-scroll", classes="scroll-pane")
+
+    def set_ath(self, ath: dict[str, float]) -> None:
+        """Set the ATH lookup used for chart titles. Call before add_chart."""
+        self._ath = ath
+
+    def set_chart_data(self, data: dict[str, pd.DataFrame]) -> None:
+        """Set pre-fetched chart history. Each add_chart will use it instead of fetching."""
+        self._chart_data = data
+
+    def add_chart(self, ticker: str) -> None:
+        self.query_one("#charts-scroll", VerticalScroll).mount(
+            StockChartItem(
+                ticker,
+                range_=self._current_range,
+                ath=self._ath.get(ticker),
+                hist=self._chart_data.get(ticker),
+            )
+        )
+
+    async def on_tabs_tab_activated(self, event: Tabs.TabActivated) -> None:
+        if event.tab.id is None:
+            return
+        new_range = event.tab.id.removeprefix("range-")
+        if new_range == self._current_range:
+            return
+        self._current_range = new_range
+        scroll = self.query_one("#charts-scroll", VerticalScroll)
+        tickers = [c.ticker for c in scroll.children if isinstance(c, StockChartItem)]
+        # Bulk-fetch the new range's data in parallel BEFORE remounting widgets.
+        # In-place plt mutation triggers textual-plotext render-state bugs, so we
+        # still swap fresh widgets — but the network calls now run concurrently.
+        self._chart_data = chart.bulk_fetch_history(tickers, new_range)
+        await self.query(StockChartItem).remove()
+        for t in tickers:
+            scroll.mount(
+                StockChartItem(
+                    t,
+                    range_=new_range,
+                    ath=self._ath.get(t),
+                    hist=self._chart_data.get(t),
+                )
+            )
+
+
+class StockTUI(App):
+    """Personal investing copilot — terminal UI. Styles live in `tui.tcss`."""
+
+    CSS_PATH = "tui.tcss"
+
+    BINDINGS = [("escape", "quit", "Quit")]
+
+    def compose(self) -> ComposeResult:
+        yield Header(show_clock=True)
+        with Horizontal(id="main"):
+            with Vertical(id="left"):
+                yield PerformancePane(id="performance")
+                yield OrdersView(id="orders")
+            with TabbedContent(id="right-tabs"):
+                with TabPane("Position", id="tab-cols"):
+                    yield VerticalScroll(id="cols-scroll", classes="scroll-pane")
+                with TabPane("Holdings", id="tab-charts"):
+                    yield HoldingsView(id="holdings-view")
+                with TabPane("Watchlist", id="tab-watchlist"):
+                    yield HoldingsView(id="watchlist-view")
+        yield Footer()
+
+    def on_mount(self) -> None:
+        self.register_theme(TOKYO_NIGHT_STORM)
+        self.theme = "tokyo-night-storm"
+
+        trades = load_transactions()
+        deposits = load_deposits()
+        orders = load_orders()
+        df = build_position_view(trades)
+        positions = compute_positions(trades)  # has avg_cost — used for sell-order Gain%
+        cash = deposits["amount"].sum() + trades["amount"].sum()
+
+        # Fetch ATH once for every ticker we'll need across all panes.
+        held = set(df.index)
+        watchlist_tickers = [t for t in load_watchlist() if t not in held]
+        buy_order_tickers = (
+            set(orders[orders["action"] == "buy"]["ticker"]) if not orders.empty else set()
+        )
+        ath_tickers = list(held | set(watchlist_tickers) | buy_order_tickers)
+        ath = fetch_ath(ath_tickers)
+
+        # Bulk-fetch 1d intraday data once for every chart we'll render. Default
+        # range is "1d"; range switching triggers its own bulk fetch later.
+        held_list = list(df.index)
+        holdings_chart_data = chart.bulk_fetch_history(held_list, "1d") if held_list else {}
+        watchlist_chart_data = (
+            chart.bulk_fetch_history(watchlist_tickers, "1d") if watchlist_tickers else {}
+        )
+
+        # Position tab
+        cols_scroll = self.query_one("#cols-scroll", VerticalScroll)
+        cols_scroll.mount(Static(build_positions_table(df, cash, ath=ath)))
+
+        # Holdings tab
+        holdings = self.query_one("#holdings-view", HoldingsView)
+        holdings.set_ath(ath)
+        holdings.set_chart_data(holdings_chart_data)
+        for ticker in held_list:
+            holdings.add_chart(ticker)
+
+        # Watchlist tab
+        watchlist = self.query_one("#watchlist-view", HoldingsView)
+        watchlist.set_ath(ath)
+        watchlist.set_chart_data(watchlist_chart_data)
+        for ticker in watchlist_tickers:
+            watchlist.add_chart(ticker)
+
+        # Open Orders pane
+        self.query_one("#orders", OrdersView).populate(positions, ath)
+
+
+def add_parser(subparsers) -> None:
+    p = subparsers.add_parser("tui", help="launch the terminal UI")
+    p.set_defaults(func=cmd_tui)
