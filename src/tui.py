@@ -10,10 +10,10 @@ from textual_plotext import PlotextPlot
 import chart
 import performance
 from loader import load_deposits, load_orders, load_transactions, load_watchlist
-from orders import build_orders_table
+from order import build_orders_table
 from portfolio import compute_positions
-from positions import build_position_view, build_positions_table
-from prices import fetch_ath
+from position import build_position_view, build_positions_table
+from price import fetch_ath, fetch_prices
 
 # Tokyo Night Storm palette as RGB tuples — plotext doesn't honor hex strings.
 TN_STORM = {
@@ -75,6 +75,7 @@ class StockChartItem(PlotextPlot):
         ticker: str,
         range_: str = "1d",
         ath: float | None = None,
+        price: float | None = None,
         hist: pd.DataFrame | None = None,
         **kwargs,
     ):
@@ -82,11 +83,17 @@ class StockChartItem(PlotextPlot):
         self.ticker = ticker
         self._range = range_
         self._ath = ath
+        self._price = price
         self._hist = hist  # if provided, skips per-widget network fetch
 
     def on_mount(self) -> None:
         self.theme = "clear"
-        self.border_title = f"{self.ticker}  (${self._ath:,.2f})" if self._ath else self.ticker
+        parts = [self.ticker]
+        if self._price is not None and not pd.isna(self._price):
+            parts.append(f"${self._price:,.2f}")
+        if self._ath is not None and not pd.isna(self._ath):
+            parts.append(f"(${self._ath:,.2f})")
+        self.border_title = "  ".join(parts)
         chart.render_chart(self.plt, self.ticker, self._range, theme=CHART_THEME, hist=self._hist)
 
 
@@ -127,6 +134,7 @@ class HoldingsView(Vertical):
         super().__init__(**kwargs)
         self._current_range = "1d"
         self._ath: dict[str, float] = {}
+        self._prices: dict[str, float] = {}
         # {ticker: pre-fetched history DataFrame} for the current range.
         self._chart_data: dict[str, pd.DataFrame] = {}
 
@@ -138,6 +146,10 @@ class HoldingsView(Vertical):
         """Set the ATH lookup used for chart titles. Call before add_chart."""
         self._ath = ath
 
+    def set_prices(self, prices: dict[str, float]) -> None:
+        """Set the current-price lookup used for chart titles. Call before add_chart."""
+        self._prices = prices
+
     def set_chart_data(self, data: dict[str, pd.DataFrame]) -> None:
         """Set pre-fetched chart history. Each add_chart will use it instead of fetching."""
         self._chart_data = data
@@ -148,6 +160,7 @@ class HoldingsView(Vertical):
                 ticker,
                 range_=self._current_range,
                 ath=self._ath.get(ticker),
+                price=self._prices.get(ticker),
                 hist=self._chart_data.get(ticker),
             )
         )
@@ -172,6 +185,7 @@ class HoldingsView(Vertical):
                     t,
                     range_=new_range,
                     ath=self._ath.get(t),
+                    price=self._prices.get(t),
                     hist=self._chart_data.get(t),
                 )
             )
@@ -219,6 +233,14 @@ class StockTUI(App):
         ath_tickers = list(held | set(watchlist_tickers) | buy_order_tickers)
         ath = fetch_ath(ath_tickers)
 
+        # Current prices: held already have them in df["price"]; fetch for watchlist.
+        prices: dict[str, float] = (
+            {t: float(p) for t, p in df["price"].items()} if not df.empty else {}
+        )
+        if watchlist_tickers:
+            wl_prices = fetch_prices(watchlist_tickers)["price"]
+            prices.update({t: float(p) for t, p in wl_prices.items()})
+
         # Bulk-fetch 1d intraday data once for every chart we'll render. Default
         # range is "1d"; range switching triggers its own bulk fetch later.
         held_list = list(df.index)
@@ -234,6 +256,7 @@ class StockTUI(App):
         # Holdings tab
         holdings = self.query_one("#holdings-view", HoldingsView)
         holdings.set_ath(ath)
+        holdings.set_prices(prices)
         holdings.set_chart_data(holdings_chart_data)
         for ticker in held_list:
             holdings.add_chart(ticker)
@@ -241,6 +264,7 @@ class StockTUI(App):
         # Watchlist tab
         watchlist = self.query_one("#watchlist-view", HoldingsView)
         watchlist.set_ath(ath)
+        watchlist.set_prices(prices)
         watchlist.set_chart_data(watchlist_chart_data)
         for ticker in watchlist_tickers:
             watchlist.add_chart(ticker)
