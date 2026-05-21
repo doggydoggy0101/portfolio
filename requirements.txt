@@ -5,3 +5,6 @@ plotext
 textual
 textual-plotext
 ruff
+youtube-transcript-api
+feedparser
+requests
