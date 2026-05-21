@@ -1,0 +1,190 @@
+# Skill: optimizer
+
+The final step of the daily flow. Reads all prior journal sections + rules + portfolio state, generates a list of proposed order adjustments, walks them with the user one at a time, appends agreed orders to `data/order.csv`, and logs the full session to today's journal.
+
+Assumes by the time it runs:
+- Today's journal has `# Reconciliation`, `# Portfolio state`, `# YouTube research` (with cross-channel synthesis subsections), `# Independent research`, `# Regularizer` sections.
+- `data/transactions.csv` has been updated by reconcile.md to reflect confirmed fills.
+- `data/order.csv` has been updated by reconcile.md (filled rows removed, still-pending rows kept).
+- `src/position.py` is available with `compute_exit_ladder(ticker)` for precise per-position 2-tier sell limits.
+
+## Inputs
+
+- `skills/rule.md` — constraints, exit triggers, position caps, opinion filter, regularizer veto rule.
+- `skills/youtube.md` — YouTuber conviction tables (the "current mindset" of each tracked YouTuber).
+- Today's journal — all prior sections.
+- Previous journal — one-day-back context (rejected proposals, prior session's decisions, recurring user concerns).
+- `data/transactions.csv` — holdings, cost basis, realized P&L.
+- `data/order.csv` — pending orders not yet filled.
+- `data/watchlist.txt` — candidate tickers.
+
+## Process
+
+### 1. Compute the candidate universe
+
+Tickers that warrant consideration today:
+- **Held positions** — every ticker the user currently owns.
+- **Watchlist tickers** — every non-held ticker on the watchlist.
+- **Pending-order tickers** — if a name has an open order, check whether the order should be modified or canceled.
+- **Strong cross-channel YouTuber picks** — names in 2+ YouTuber conviction tables that aren't already held or watchlisted, if they pass the rules.
+
+### 2. Apply rules to each candidate
+
+Walk every ticker through the rule checks defined in `skills/rule.md`:
+
+- **Position size check.** Over cap? At cap? Room to add? Cap violations are *warnings* (per rule.md cap-as-warning rule), not forced trims — surface them and offer an *optional* accelerated trim; the default exit ladder will rebalance naturally otherwise.
+- **Default exit ladder maintenance.** For every non-core held position, verify a current 2-tier sell ladder exists in `data/order.csv`. Call `compute_exit_ladder(ticker)` for the precise tier 1 / tier 2 prices. Propose new ladders for positions without one; propose refreshes when avg_cost has changed (e.g., after an add).
+- **Opinion filter.** Count favorable signals from `{each YouTuber, online research}` — at least 2 for mean-reversion, at least 3 for momentum (rule scales with N YouTubers). "Favorable" per the table in rule.md.
+- **Regularizer veto.** Parse `**Top flag (hard veto): TICKER**` from today's regularizer section. If a candidate ticker matches the top flag, disqualify it.
+- **Quality filter** (mean-reversion) — does the entry criterion hold?
+- **Catalyst** (momentum) — fresh driver?
+- **Exit trigger math** (for held) — position return ≥ SP500-since-entry-return + 10%? Use `compute_sp500_since_entry(ticker)` from `src/position.py` for the precise per-position SPY-since-entry; do NOT use a flat assumption.
+- **Add trigger** (for held, not at cap) — average cost down ≥10% with quality intact?
+- **Fundamental-break exit** — has the quality filter from entry stopped holding?
+
+Each ticker either generates a proposal or is silently skipped. Optimizer judges sizing within the caps defined in rule.md.
+
+### 3. Generate the proposal list
+
+For each ticker that warrants action, build a proposal with:
+- **Action** — BUY / SELL / TRIM / CANCEL / MODIFY
+- **Rule that fired** — exactly which clause in rule.md generated this proposal
+- **Opinion support count** — N favorable signals (out of `{each YouTuber, online research}`), naming which signaled favorable
+- **Regularizer status** — top flag? warning? neither?
+- **Suggested size** — within position cap
+- **Suggested price** — limit price (often pegged to recent close or analyst consensus PT)
+- **Suggested expires** — typically **180 days** (matches the user's broker GTC default and existing orders). Optimizer can shorten for time-sensitive proposals; users can override per proposal.
+
+### 4. Open with the full list, then drill in
+
+```
+=== Today's proposed adjustments (N total) ===
+
+1. <ACTION> <TICKER> — <one-line summary>
+2. <ACTION> <TICKER> — <one-line summary>
+3. <ACTION> <TICKER> — <one-line summary>
+...
+
+(If N is 0: "No actions proposed today. Holdings are in compliance with the rules; no new candidates qualify.")
+
+---
+Proposal 1 of N: <ACTION> <TICKER>
+
+**Why:** <which rule fired, with the math>
+**Opinion support:** <N favorable signals — list which (YouTubers + online)>
+**Regularizer:** <top flag / warning / clear>
+**Suggested size:** <amount, with cap check>
+**Suggested price:** <limit>
+**Suggested expires:** <date>
+**What would change this view:** <falsifiable condition>
+
+→ Awaiting user response (yes / no / modify / discuss).
+```
+
+### 5. Walk one proposal at a time
+
+For each proposal, take user response:
+
+- **Yes** — lock the decision. Move to next.
+- **No** — lock the rejection (with optional reason). Move to next.
+- **Modify** — user adjusts size/price/expires. Confirm the modified version. Lock. Move to next.
+- **Discuss** — engage substantively. Don't push back hard, but answer questions and surface relevant data from the journal. Once the user is ready, ask yes/no/modify.
+
+After proposal N is decided, present proposal N+1. **Do not batch.** Sequential.
+
+### 6. End-of-session summary
+
+When all proposals have been decided, write a `# Optimizer session` block to today's journal:
+
+```markdown
+# Optimizer session — YYYY-MM-DD
+
+## Proposed adjustments
+1. ...
+2. ...
+3. ...
+
+## Decisions
+1. **<ACTION> <TICKER>** ✓ Agreed [or ✗ Rejected, or ✎ Modified] — <one-line reason if relevant>
+2. ...
+3. ...
+
+## Discussion notes
+- <any substantive points raised during the chat>
+
+## Appended to data/order.csv
+- date_added=YYYY-MM-DD, ticker=..., action=..., price=..., quantity=..., expires=..., note=...
+- (one line per agreed order)
+
+## Not appended
+- <TICKER> — user said no, reason: <if given>
+- <TICKER> — user said modify but never finalized the new terms
+```
+
+### 7. Write to data/order.csv
+
+For every agreed (or modified-then-agreed) proposal, append a row to `data/order.csv`. Columns: `date_added,ticker,action,price,quantity,expires,note`.
+
+- `date_added` — today's date.
+- `note` — optional brief reason, e.g., "exit trigger fired" or "dip entry per rules".
+
+Cancels remove the existing row, not append. Modifications can either be implemented as remove-and-append or as an in-place edit.
+
+## Proposal generation rules
+
+A proposal must always include:
+
+- Concrete **action**, **size**, **price**, **expires**.
+- The exact **rule clause** from `skills/rule.md` that justifies the proposal (cite the section header, e.g., "Mean-reversion → Exit trigger").
+- The **opinion vote count** with named sources.
+- A one-sentence **falsifiability statement** — "what would change this view."
+
+A proposal must never:
+
+- Recommend an action that violates a hard constraint (long-only, no options, US-only, etc.).
+- Exceed the per-name position cap.
+- Push cash below the 5% floor.
+- Include a vetoed ticker (top flag in regularizer).
+- Add to a momentum position (momentum is one-shot per rule.md).
+
+## Persona / tone in chat
+
+- **Direct.** State the proposal. State the rule. State the opinion count. Move on.
+- **Cite, don't editorialize.** Bull/bear framing comes from journal sections, not the optimizer's own voice.
+- **Don't push.** If user says no, accept and move on. No "are you sure?"
+- **Engage on discuss.** When user asks why, surface relevant data from journal sections (cite which section / which YouTuber / which online-research bullet). Don't invent reasoning.
+- **No emoji unless user uses them first.**
+- **Don't propose new rules during the chat.** Rule changes are out-of-band (separate sessions where the user explicitly wants to revise rule.md).
+
+## What optimizer does NOT do
+
+- Does not fetch new data — everything it needs is already in today's journal + skills/youtube.md + data/*.csv.
+- Does not run other skills.
+- Does not place orders at the broker — output is just `data/order.csv` rows.
+- Does not modify `skills/rule.md`, `skills/youtube.md`, or any other skill file.
+- Does not propose vetoed names.
+- Does not auto-decide. Every order requires explicit user yes.
+- Does not log discussion turn-by-turn in journal. Only the end-of-session summary is journaled.
+
+## Sleep test / safety
+
+- If applying any proposal would put **active-sleeve cash below the 5% floor**, the proposal is deferred ("waiting for cash to rebuild from a trim").
+- If proposing **adds** to a position, the math respects the cap and the 3-add limit (per rule.md mean-reversion).
+- If a held position is **over the per-name cap**, the optimizer **surfaces the warning every session** and **offers an optional accelerated trim** (lower-priced tier than the default ladder). It does **not** force a trim — without explicit user yes, the position rides until the default exit ladder fires. (Per rule.md cap-as-warning rule.)
+- The regularizer top flag is a hard veto, no override.
+
+## In-session re-open behavior
+
+If the user closes mid-session and re-opens later the same day:
+- CLAUDE.md sees today's journal exists → reads it → finds in-progress `# Optimizer session` block (e.g., 2 of 3 proposals resolved).
+- Offer: "We were partway through optimizer; proposal 3 is still pending. Pick up there, or restart?"
+- If continue: replay proposal 3 from the journal.
+- If restart: clear the partial session block and re-run optimizer from scratch (uses the same journal context, so prior research isn't re-done).
+
+## Iteration ideas (post-v1)
+
+- **Track record per proposal type** — does mean-reversion sleeve actually beat SP500? Momentum?
+- **Pre-earnings flag** — surface "earnings in N days" as informational, without changing rules.
+- **Multi-name dependencies** — e.g., "buy CRM needs cash; propose TSLA trim first, then ask about CRM."
+- **User-rejected pattern detection** — if the user has rejected CAKE in 5 of the last 5 sessions, optimizer can note that pattern (without filtering) so the user sees their own consistency.
+- **Confidence-weighted sizing** — high-confidence rule matches get larger initial sizes within the cap; low-confidence get smaller.
