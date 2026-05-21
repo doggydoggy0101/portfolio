@@ -113,16 +113,18 @@ class OrdersView(Vertical):
                 yield VerticalScroll(id="sell-scroll", classes="scroll-pane")
 
     def populate(self, positions: pd.DataFrame, ath: dict[str, float]) -> None:
-        """Wire data in. Called from `StockTUI.on_mount` after ATH is fetched."""
+        """Wire data in. Called from `StockTUI.on_mount` after ATH is fetched.
+        Idempotent — clears existing tables before mounting fresh ones, so it
+        can also be called from a reload action."""
         self._positions = positions
         self._ath = ath
         orders = load_orders()
-        self.query_one("#buy-scroll", VerticalScroll).mount(
-            Static(build_orders_table(orders, "buy", positions=positions, ath=ath))
-        )
-        self.query_one("#sell-scroll", VerticalScroll).mount(
-            Static(build_orders_table(orders, "sell", positions=positions, ath=ath))
-        )
+        buy = self.query_one("#buy-scroll", VerticalScroll)
+        sell = self.query_one("#sell-scroll", VerticalScroll)
+        buy.remove_children()
+        sell.remove_children()
+        buy.mount(Static(build_orders_table(orders, "buy", positions=positions, ath=ath)))
+        sell.mount(Static(build_orders_table(orders, "sell", positions=positions, ath=ath)))
 
 
 class HoldingsView(Vertical):
@@ -196,7 +198,19 @@ class StockTUI(App):
 
     CSS_PATH = "tui.tcss"
 
-    BINDINGS = [("escape", "quit", "Quit")]
+    # Disable Textual's default Ctrl+P command palette — we don't use it and
+    # it gets in the way.
+    ENABLE_COMMAND_PALETTE = False
+
+    BINDINGS = [
+        ("escape", "quit", "Quit"),
+        # Re-read data/*.csv and re-render the dynamic panes (Position table,
+        # Open Orders). Useful after a Claude Code chat session updates
+        # data/order.csv or data/transactions.csv. Charts are kept as-is
+        # (re-fetching all chart history is expensive — restart the TUI if
+        # you need a full refresh).
+        ("ctrl+r", "reload", "Reload"),
+    ]
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
@@ -216,7 +230,24 @@ class StockTUI(App):
     def on_mount(self) -> None:
         self.register_theme(TOKYO_NIGHT_STORM)
         self.theme = "tokyo-night-storm"
+        self._populate_dynamic_panes()
 
+    def action_reload(self) -> None:
+        """Re-read data/*.csv and refresh the Position table + Open Orders pane.
+        Charts (Holdings/Watchlist) are untouched — restart the TUI for those."""
+        # Clear the Position-tab content; OrdersView.populate is already idempotent.
+        self.query_one("#cols-scroll", VerticalScroll).remove_children()
+        self._populate_dynamic_panes(refresh_charts=False)
+        self.notify("Reloaded data from disk.", timeout=2)
+
+    def _populate_dynamic_panes(self, *, refresh_charts: bool = True) -> None:
+        """Load data from disk and mount the Position table + Open Orders pane
+        (and optionally the Holdings/Watchlist charts on first mount).
+
+        Called from `on_mount` (refresh_charts=True) and from `action_reload`
+        (refresh_charts=False — chart history is expensive to re-fetch and
+        the Holdings/Watchlist tabs already have their own range-switch reload).
+        """
         trades = load_transactions()
         deposits = load_deposits()
         orders = load_orders()
@@ -241,36 +272,36 @@ class StockTUI(App):
             wl_prices = fetch_prices(watchlist_tickers)["price"]
             prices.update({t: float(p) for t, p in wl_prices.items()})
 
-        # Bulk-fetch 1d intraday data once for every chart we'll render. Default
-        # range is "1d"; range switching triggers its own bulk fetch later.
-        held_list = list(df.index)
-        holdings_chart_data = chart.bulk_fetch_history(held_list, "1d") if held_list else {}
-        watchlist_chart_data = (
-            chart.bulk_fetch_history(watchlist_tickers, "1d") if watchlist_tickers else {}
-        )
-
-        # Position tab
+        # Position tab (always refreshed)
         cols_scroll = self.query_one("#cols-scroll", VerticalScroll)
         cols_scroll.mount(Static(build_positions_table(df, cash, ath=ath)))
 
-        # Holdings tab
-        holdings = self.query_one("#holdings-view", HoldingsView)
-        holdings.set_ath(ath)
-        holdings.set_prices(prices)
-        holdings.set_chart_data(holdings_chart_data)
-        for ticker in held_list:
-            holdings.add_chart(ticker)
-
-        # Watchlist tab
-        watchlist = self.query_one("#watchlist-view", HoldingsView)
-        watchlist.set_ath(ath)
-        watchlist.set_prices(prices)
-        watchlist.set_chart_data(watchlist_chart_data)
-        for ticker in watchlist_tickers:
-            watchlist.add_chart(ticker)
-
-        # Open Orders pane
+        # Open Orders pane (always refreshed; populate is idempotent)
         self.query_one("#orders", OrdersView).populate(positions, ath)
+
+        if refresh_charts:
+            # Bulk-fetch 1d intraday data once for every chart we'll render.
+            held_list = list(df.index)
+            holdings_chart_data = chart.bulk_fetch_history(held_list, "1d") if held_list else {}
+            watchlist_chart_data = (
+                chart.bulk_fetch_history(watchlist_tickers, "1d") if watchlist_tickers else {}
+            )
+
+            # Holdings tab
+            holdings = self.query_one("#holdings-view", HoldingsView)
+            holdings.set_ath(ath)
+            holdings.set_prices(prices)
+            holdings.set_chart_data(holdings_chart_data)
+            for ticker in held_list:
+                holdings.add_chart(ticker)
+
+            # Watchlist tab
+            watchlist = self.query_one("#watchlist-view", HoldingsView)
+            watchlist.set_ath(ath)
+            watchlist.set_prices(prices)
+            watchlist.set_chart_data(watchlist_chart_data)
+            for ticker in watchlist_tickers:
+                watchlist.add_chart(ticker)
 
 
 def add_parser(subparsers) -> None:

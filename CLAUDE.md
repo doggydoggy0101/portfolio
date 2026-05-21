@@ -42,7 +42,7 @@ All sensitive/personal financial data lives in `data/` (gitignored). Read the ap
 python main.py
 ```
 
-Launches the Textual TUI. `Esc` to quit. No subcommands — the TUI is the only entry point.
+Launches the Textual TUI. `Esc` quits, `Ctrl+R` reloads data (re-reads `data/*.csv` and refreshes the Position table + Open Orders pane; charts are kept). No subcommands — the TUI is the only entry point.
 
 Deps in `requirements.txt`. Install: `pip install -r requirements.txt`. Repo uses a `.venv/` for development.
 
