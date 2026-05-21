@@ -42,15 +42,20 @@ If `data/order.csv` is empty, log just: "No open orders to reconcile."
 
 ## Schema for transactions.csv append
 
-The CSV header (don't write it, just match the row format): `date,ticker,action,quantity,price,amount`.
+`data/transactions.csv` is the broker's raw export — reconcile must match that schema so the loader can still parse the file. The loader (`src/loader.py::load_transactions`) reads these six columns:
 
-For a confirmed fill row:
-- `date` — user-confirmed fill date (YYYY-MM-DD).
-- `ticker` — from order.csv row.
-- `action` — `buy` or `sell` from order.csv row.
-- `quantity` — from order.csv row.
-- `price` — user-confirmed fill price (often differs from limit by cents).
-- `amount` — computed: `−(quantity × price)` for buys, `+(quantity × price)` for sells. Negative = cash out, positive = cash in.
+| Column | Value | Notes |
+|---|---|---|
+| `Trade Date` | `MM/DD/YYYY` | user-confirmed fill date (note: slashes, US format) |
+| `Type` | `Buy` or `Sell` | capitalized; the loader filters on this — anything else is ignored |
+| `Ticker` | from order.csv row | uppercase, no whitespace |
+| `Quantity` | shares | broker convention: **positive for BUY, negative for SELL**. The loader takes `.abs()` |
+| `Price USD` | per-share USD | user-confirmed fill price (often differs from limit by cents) |
+| `Amount USD` | signed total | **BUY: `−(quantity × price)`** (cash out). **SELL: `+(quantity × price)`** (cash in) |
+
+**If the broker export contains additional columns** (settlement date, commission, fees, account number, etc.), preserve the existing header and leave the extra columns empty for reconcile-appended rows. The loader only reads the six above; anything else is ignored on read but should still be present so future broker re-exports merge cleanly.
+
+**Implementation note:** read the existing `data/transactions.csv` with `pd.read_csv` (it'll strip the broker's UTF-8 BOM if present), build a row dict matching all columns (filling unused ones — Post Date, Settlement Date, Commissions, Description, etc. — with empty strings), append, write back. Don't write a fresh header — the file already has one. A typical brokerage export has ~30 columns; the loader only reads six (`Trade Date`, `Type`, `Ticker`, `Quantity`, `Price USD`, `Amount USD`).
 
 ## Discipline
 
