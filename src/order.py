@@ -1,8 +1,10 @@
-"""Open-orders view: rich.Table built from `data/order.csv`, filtered by action.
+"""Orders pane tables: open orders (filtered by action) + transaction history.
 
-Each tab shows one decision metric:
+Each open-orders tab shows one decision metric:
 - Sell tab: "Gain" — % return if executed at the limit price vs current avg cost basis.
 - Buy tab: "vs ATH" — % the limit price is below all-time high (negative number).
+
+History tab shows past fills from `data/transactions.csv`, newest first.
 """
 
 import pandas as pd
@@ -55,13 +57,47 @@ def build_orders_table(
         table.add_row(f"[dim]No open {action} orders[/]", "", "", "", "")
         return table
 
-    for _, r in filtered.iterrows():
+    for _, r in filtered.sort_values("expires", ascending=False).iterrows():
         table.add_row(
             r["ticker"],
             f"${r['price']:,.2f}",
             str(r["quantity"]),
             r["expires"].strftime("%Y-%m-%d"),
             _extra_cell(r, action, positions, ath),
+        )
+
+    return table
+
+
+def build_history_table(trades: pd.DataFrame) -> Table:
+    """Past fills from `data/transactions.csv`, newest first.
+
+    Columns: Date, Ticker, Action (Buy red / Sell green — matches the Open Orders
+    Buy/Sell color convention), Qty, Price.
+    """
+    table = Table(box=box.ROUNDED)
+    table.add_column("", justify="left")  # ticker
+    table.add_column("Price", justify="right")
+    table.add_column("Qty", justify="right")
+    table.add_column("Date", justify="right")
+    table.add_column("Action", justify="left")
+
+    if trades.empty:
+        table.add_row("[dim]No transactions[/]", "", "", "", "")
+        return table
+
+    for _, r in trades.sort_values("date", ascending=False).iterrows():
+        color = "red" if r["action"] == "buy" else "green"
+        label = r["action"].capitalize()
+        # Quantity may be fractional from the broker export — strip trailing zeros.
+        qty = r["quantity"]
+        qty_str = f"{qty:g}"
+        table.add_row(
+            r["ticker"],
+            f"${r['price']:,.2f}",
+            qty_str,
+            r["date"].strftime("%Y-%m-%d"),
+            f"[{color}]{label}[/{color}]",
         )
 
     return table

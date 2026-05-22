@@ -10,7 +10,7 @@ from textual_plotext import PlotextPlot
 import chart
 import performance
 from loader import load_deposits, load_orders, load_transactions, load_watchlist
-from order import build_orders_table
+from order import build_history_table, build_orders_table
 from portfolio import compute_positions
 from position import build_position_view, build_positions_table
 from price import fetch_ath, fetch_prices
@@ -98,7 +98,7 @@ class StockChartItem(PlotextPlot):
 
 
 class OrdersView(Vertical):
-    """Bottom-left: pending orders, split into Buy / Sell tabs (Sell active by default)."""
+    """Bottom-left: pending orders (Buy / Sell) + past fills (History). Sell active by default."""
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -111,8 +111,12 @@ class OrdersView(Vertical):
                 yield VerticalScroll(id="buy-scroll", classes="scroll-pane")
             with TabPane("Order Sell", id="tab-sell"):
                 yield VerticalScroll(id="sell-scroll", classes="scroll-pane")
+            with TabPane("Order History", id="tab-history"):
+                yield VerticalScroll(id="history-scroll", classes="scroll-pane")
 
-    def populate(self, positions: pd.DataFrame, ath: dict[str, float]) -> None:
+    def populate(
+        self, positions: pd.DataFrame, ath: dict[str, float], trades: pd.DataFrame
+    ) -> None:
         """Wire data in. Called from `StockTUI.on_mount` after ATH is fetched.
         Idempotent — clears existing tables before mounting fresh ones, so it
         can also be called from a reload action."""
@@ -121,10 +125,13 @@ class OrdersView(Vertical):
         orders = load_orders()
         buy = self.query_one("#buy-scroll", VerticalScroll)
         sell = self.query_one("#sell-scroll", VerticalScroll)
+        history = self.query_one("#history-scroll", VerticalScroll)
         buy.remove_children()
         sell.remove_children()
+        history.remove_children()
         buy.mount(Static(build_orders_table(orders, "buy", positions=positions, ath=ath)))
         sell.mount(Static(build_orders_table(orders, "sell", positions=positions, ath=ath)))
+        history.mount(Static(build_history_table(trades)))
 
 
 class HoldingsView(Vertical):
@@ -277,7 +284,7 @@ class StockTUI(App):
         cols_scroll.mount(Static(build_positions_table(df, cash, ath=ath)))
 
         # Open Orders pane (always refreshed; populate is idempotent)
-        self.query_one("#orders", OrdersView).populate(positions, ath)
+        self.query_one("#orders", OrdersView).populate(positions, ath, trades)
 
         if refresh_charts:
             # Bulk-fetch 1d intraday data once for every chart we'll render.
