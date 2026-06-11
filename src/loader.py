@@ -34,6 +34,22 @@ def load_transactions(path: Path = TRANSACTIONS_CSV) -> pd.DataFrame:
     )
 
 
+def load_dividends(path: Path = TRANSACTIONS_CSV) -> pd.DataFrame:
+    """Dividend/income cash rows from the transaction CSV (Type contains 'Dividend').
+
+    Columns: date, ticker, amount (positive USD cash received). These add to cash
+    like a sell, but never touch positions or realized P&L (no shares change hands).
+    """
+    raw = pd.read_csv(path)
+    div = raw[raw["Type"].astype(str).str.contains("Dividend", case=False, na=False)].copy()
+    if div.empty:
+        return pd.DataFrame(columns=["date", "ticker", "amount"])
+    div["date"] = pd.to_datetime(div["Trade Date"], format="%m/%d/%Y")
+    div["ticker"] = div["Ticker"].str.strip()
+    div["amount"] = div["Amount USD"].astype(float)
+    return div[["date", "ticker", "amount"]].sort_values("date").reset_index(drop=True)
+
+
 def load_deposits(path: Path = DEPOSIT_CSV) -> pd.DataFrame:
     """Return deposits/withdrawals DataFrame: columns date, amount, notes.
 

@@ -151,12 +151,15 @@ def build_positions_table(
 # ---------------------------------------------------------------------------
 
 
-def _compute_cash(trades: pd.DataFrame, deposits: pd.DataFrame) -> float:
-    """Cash = total deposits + sells - buys. buys are stored as negative `amount`."""
+def _compute_cash(
+    trades: pd.DataFrame, deposits: pd.DataFrame, dividends: pd.DataFrame | None = None
+) -> float:
+    """Cash = deposits + sells - buys + dividends. buys are stored as negative `amount`."""
     total_dep = float(deposits["amount"].sum())
     buys = float(trades.loc[trades["amount"] < 0, "amount"].sum())  # negative
     sells = float(trades.loc[trades["amount"] > 0, "amount"].sum())  # positive
-    return total_dep + buys + sells
+    div = 0.0 if dividends is None else float(dividends["amount"].sum())  # dividend cash
+    return total_dep + buys + sells + div
 
 
 def compute_sp500_since_entry(ticker: str, today=None) -> float:
@@ -243,16 +246,17 @@ def build_state_markdown(today=None, core_ticker: str = "VOO") -> str:
     """
     from datetime import date
 
-    from loader import load_deposits, load_orders, load_transactions
+    from loader import load_deposits, load_dividends, load_orders, load_transactions
 
     if today is None:
         today = date.today()
 
     trades = load_transactions()
     deposits = load_deposits()
+    dividends = load_dividends()
     orders = load_orders()
 
-    cash = _compute_cash(trades, deposits)
+    cash = _compute_cash(trades, deposits, dividends)
     df = build_position_view(trades)
 
     if not df.empty and core_ticker in df.index:

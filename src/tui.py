@@ -9,7 +9,7 @@ from textual_plotext import PlotextPlot
 
 import chart
 import performance
-from loader import load_deposits, load_orders, load_transactions, load_watchlist
+from loader import load_deposits, load_dividends, load_orders, load_transactions, load_watchlist
 from order import build_history_table, build_orders_table
 from portfolio import compute_positions
 from position import build_position_view, build_positions_table
@@ -257,10 +257,11 @@ class StockTUI(App):
         """
         trades = load_transactions()
         deposits = load_deposits()
+        dividends = load_dividends()
         orders = load_orders()
         df = build_position_view(trades)
         positions = compute_positions(trades)  # has avg_cost — used for sell-order Gain%
-        cash = deposits["amount"].sum() + trades["amount"].sum()
+        cash = deposits["amount"].sum() + trades["amount"].sum() + dividends["amount"].sum()
 
         # Fetch ATH once for every ticker we'll need across all panes.
         held = set(df.index)
