@@ -86,12 +86,17 @@ def build_position_view(trades: pd.DataFrame) -> pd.DataFrame:
 
 
 def build_positions_table(
-    df: pd.DataFrame, cash: float, ath: dict[str, float] | None = None
+    df: pd.DataFrame,
+    cash: float,
+    ath: dict[str, float] | None = None,
+    deposits_total: float | None = None,
 ) -> Table:
     """Build the rich.Table shown in the TUI's Position tab.
 
     Each stock row spans two text rows: number on top, secondary value below in parens.
     `ath` (optional): {ticker: all-time high} — shown below price as "ATH $X".
+    `deposits_total` (optional): net deposits — when given, the TOTAL row's Value cell
+    shows total gain vs deposits below the portfolio value.
     """
     ath = ath or {}
     table = Table(box=box.ROUNDED)
@@ -127,12 +132,15 @@ def build_positions_table(
 
         table.add_section()
         total_value = stocks_value + cash
+        value_cell = _money(total_value, bold=True)
+        if deposits_total:  # second line: total earned vs net deposits
+            value_cell += "\n" + _money(total_value - deposits_total, signed=True)
         table.add_row(
             "[bold]TOTAL[/]",
             "",
             _money_pct(stocks_day_gl, day_gl_pct_total, bold=True),
             _money_pct(stocks_total_gl, total_gl_pct, bold=True),
-            _money(total_value, bold=True),
+            value_cell,
         )
 
     return table

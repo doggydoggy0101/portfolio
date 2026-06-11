@@ -281,7 +281,11 @@ class StockTUI(App):
 
         # Position tab (always refreshed)
         cols_scroll = self.query_one("#cols-scroll", VerticalScroll)
-        cols_scroll.mount(Static(build_positions_table(df, cash, ath=ath)))
+        cols_scroll.mount(
+            Static(
+                build_positions_table(df, cash, ath=ath, deposits_total=deposits["amount"].sum())
+            )
+        )
 
         # Open Orders pane (always refreshed; populate is idempotent)
         self.query_one("#orders", OrdersView).populate(positions, ath, trades)
