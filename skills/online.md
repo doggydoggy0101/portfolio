@@ -1,6 +1,6 @@
 # Skill: Online research
 
-An independent, objective read of the current state from primary web sources. Built to be a neutral counterweight to opinionated YouTuber content. **Never reads or references `skills/youtube.md`, `journal/*.md` YouTuber sections, or any third-party commentary tracked elsewhere.** The whole point is independence — if it ever cites a tracked YouTuber, the value of the section collapses.
+An independent, objective read of the current state from primary web sources. Built to be a neutral counterweight to opinionated YouTuber content. **Never reads or references `skills/youtube.md`, the `skills/youtube/` profiles, `journal/*.md` YouTuber sections, or any third-party commentary tracked elsewhere.** The whole point is independence — if it ever cites a tracked YouTuber, the value of the section collapses.
 
 ## Process
 
@@ -35,7 +35,7 @@ If a ticker has no material news in the last 24-48h, the section is still produc
 3. **Government / Fed primary sources** for macro: BLS (CPI, jobs), BEA (PCE, GDP), Fed (FOMC statements, dot plot), Treasury (yields).
 4. **Sentiment indicators** — direct from the source: CBOE for VIX, CNN for F&G, AAII.com for AAII survey, NAAIM.org for NAAIM. Use the actual reading, not someone's commentary.
 
-**Never** YouTube. **Never** cite the YouTubers tracked in `skills/youtube.md`, even indirectly. If you find yourself thinking "X said Y," stop and re-derive from primary data.
+**Never** YouTube. **Never** cite the YouTubers tracked in `skills/youtube/`, even indirectly. If you find yourself thinking "X said Y," stop and re-derive from primary data.
 
 ## Tone discipline
 
@@ -44,7 +44,7 @@ If a ticker has no material news in the last 24-48h, the section is still produc
 - **Falsifiability.** Every bull/bear pair includes "what would change this view." If you can't write one, the view is too vague.
 - **No invented price targets.** Only cite analyst consensus PTs from a real source. Don't compute your own "intrinsic value."
 - **No editorial.** No "I think," no "looks attractive," no "exciting story." State facts and frame as bull/bear.
-- **Cite inline.** Every factual claim that isn't from `data/*.csv` needs a URL.
+- **Cite inline.** Every factual claim that isn't from the local `data/` files needs a URL.
 
 ## What this skill does NOT do
 

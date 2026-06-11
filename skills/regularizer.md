@@ -51,7 +51,7 @@ The `**Top flag (hard veto): TICKER**` line is **load-bearing for `skills/rule.m
 ## Tone discipline
 
 - **"Worth considering…"** / **"On the other hand…"** / **"If X is wrong, then…"** — these are the registers.
-- Cite back to specific claims: "Tom + Jeremy + online research all see AMD as buy at $447 (+96.6% YTD); here's the case against…"
+- Cite back to specific claims: "two tracked creators + online research all see TICKER as buy at $X (+Y% YTD); here's the case against…"
 - **1-2 paragraphs per point.** Not sermons.
 - Acknowledge what the consensus gets right *before* pushing back. The job is to balance, not denigrate.
 - Avoid "doomer" framing — no claims of imminent crash, no "the bubble is about to pop." Just probability-weighted dissent.

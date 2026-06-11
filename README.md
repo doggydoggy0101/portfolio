@@ -27,7 +27,8 @@ Keys: `Esc` quits, `Ctrl+R` reloads.
 ├── skills/               AI skill files — one per step of the daily loop
 │   ├── reconcile.md      step 1: sync data/ira/order.csv ↔ data/ira/transactions.csv
 │   ├── position.md       step 2: compute portfolio state, log to journal
-│   ├── youtube.md        step 3: pull + summarize YouTuber videos
+│   ├── youtube.md        step 3: rule — pull + summarize tracked creators
+│   ├── youtube/          per-creator profiles (gitignored); template.md = structure
 │   ├── online.md         step 4: independent web research per ticker
 │   ├── regularizer.md    step 5: deliberate dissent + hard-veto flag
 │   ├── rule.md           trading doctrine (constraints + exit triggers)

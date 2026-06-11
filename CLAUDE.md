@@ -20,7 +20,7 @@ When the user opens a new session and triggers the daily run (asks for "morning 
 3. **If NO** — this is the first session of the day. Initialize the journal with a date header, then run the daily flow in this order. Each step writes a clear `# H1` section so subsequent steps and re-opens can find their inputs.
    1. `skills/reconcile.md` — check open orders against price history; user confirms fills; move filled rows order.csv → transactions.csv.
    2. `skills/position.md` — compute & log portfolio state (sleeves, holdings table with %active / %total, open orders, rule-compliance check).
-   3. `skills/youtube.md` — pull new transcripts → summarize via parallel subagents → maintain per-YouTuber conviction tables in the skill file itself.
+   3. `skills/youtube.md` — pull new transcripts → summarize via parallel subagents → maintain per-creator conviction tables in their profile files under `skills/youtube/` (gitignored; `template.md` documents the structure).
    4. `skills/online.md` — independent web research per ticker (held + watchlist + pending-order union).
    5. `skills/regularizer.md` — dissent. Reads prior journal sections, produces the load-bearing `**Top flag (hard veto): TICKER**` line.
    6. `skills/optimizer.md` — read everything (including `# Portfolio state` from step 2), propose order adjustments, discuss one-at-a-time with user, append agreed orders to `data/ira/order.csv`, log full session to journal.

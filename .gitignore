@@ -22,3 +22,5 @@ venv/
 data/
 PLAN.md
 journal/
+# Private YouTuber profiles — the creator set is per-user. template.md stays tracked.
+skills/youtube/youtube_*.md
