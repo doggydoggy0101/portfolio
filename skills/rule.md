@@ -58,7 +58,9 @@ These are doctrine. The regularizer doesn't push back on them. Optimizer doesn't
 
 The bet: a quality company temporarily out of favor reverts toward fair value. The entry has *built-in margin of safety* — you're buying after most of the bad news.
 
-### Entry criteria (all should hold)
+### Entry criteria
+
+**Hard lines (all must hold — objective, not negotiable):**
 
 1. **Material drawdown from 52-week high.** Optimizer judges what counts as "material" per name; a useful floor is ~20%, but a low-volatility name at -20% can be a stronger setup than a high-volatility name at -40%. The point: the bad news is *mostly already in the price*.
 2. **Quality filter:** company has at least one of:
@@ -67,17 +69,34 @@ The bet: a quality company temporarily out of favor reverts toward fair value. T
    - Profitable and FCF-positive in the most recent reported quarter
    - Net cash on balance sheet OR debt clearly serviceable
 3. **No active earnings collapse:** the latest reported quarter did *not* show revenue declining year-over-year and operating margin compressing simultaneously. Drawdowns from sentiment are fine; drawdowns from fundamental deterioration are not.
-4. **Cross-source signal:** at least **2 favorable signals** from the set `{each YouTuber, online research}`. Each YouTuber counts as 1 signal; online research counts as 1 signal. Cross-channel synthesis (the "Where they agree / disagree" tables) is human-readable journal context, not a vote — it's already a derivative of the per-YouTuber views. The number of YouTubers is not fixed; the rule scales naturally.
-5. **Regularizer veto:** the **top** named consensus-trade-risk in today's `# Regularizer` → `## Where consensus is forming` section is a hard veto. The first / headline ticker disqualifies, even if every other signal is favorable. Secondary names in that section are warnings only — optimizer can size cautiously but is not required to skip them.
+4. **Not overvalued.** Analyst consensus price target is **≥ current price + 10%** in today's `# Independent research`. If the Street sees less than ~10% upside, skip — *however* bullish the creators are. This is the single most reliable brake in the system (it's what flagged the names that had already run); it stays a bright line.
+5. **Regularizer veto:** the **top** named consensus-trade-risk in today's `# Regularizer` → `## Where consensus is forming` section is a hard veto. The first / headline ticker disqualifies, even if everything else is favorable. Secondary names there are warnings only.
 
-### What counts as "favorable" per signal
+If any hard line fails it is **not an actionable entry** — but the optimizer can still surface it for discussion, clearly marked as blocked + which line failed (see `skills/optimizer.md`).
+
+### Conviction read → position size (replaces the old "count N favorable signals" gate)
+
+Creator opinions no longer gate yes/no. Once the hard lines pass, weigh the favorable opinion evidence and translate it to **size**:
+
+- **Inputs — weighted by relevance, not a flat count:**
+  - Each tracked creator who *covers* the name with a buy/strong-buy in their conviction table = a favorable creator signal. A creator who simply **doesn't cover** the name counts as *nothing* — not a missing signal, not a negative. (This removes the defect where the momentum bucket was structurally impossible because only one creator maintains a table.)
+  - The **degree** of analyst upside beyond the +10% line (e.g. +15% vs +45%) — more = stronger.
+  - Optimizer may weight a higher-trust source more heavily, but must **state the weighting in writing** so the read stays auditable.
+- **Read → size:**
+  - **Strong** (multiple independent favorable sources + meaningful upside) → full initial entry (~5% of active), eligible to build toward the cap on the add triggers.
+  - **Moderate** (one solid creator + favorable analyst upside) → starter entry (~half, ~2.5%).
+  - **Thin** (single source, or favorable-but-just-over-the-bar) → optional toe-hold (~1-2%), logged as thin-conviction with the optimizer's dissent noted. Thin conviction never sizes up.
+
+Conviction scales **size**, not the yes/no decision. A hunch can be acted on — small — instead of being blocked or turning into a silent rule-break.
+
+**Signal definitions** (used by hard line 4 and the conviction read):
 
 | Signal | Favorable when... |
 |---|---|
-| Any YouTuber | Name is in that YouTuber's **"Highest-conviction names" table** in `skills/youtube.md` with a buy/strong-buy stance (not "avoid"). |
-| Online research | **Analyst consensus PT > current price by ≥10%** in today's `# Independent research` section. |
+| Any creator | Name is in that creator's **"Highest-conviction names" table** (`skills/youtube/youtube_<slug>.md`) with a buy/strong-buy stance (not "avoid"). |
+| Online research | **Analyst consensus PT ≥ current price + 10%** in today's `# Independent research` (also hard line 4). |
 
-The YouTuber profiles in `skills/youtube.md` are the source of truth for each YouTuber's current conviction set. The youtube skill maintains them: a name joins a YouTuber's conviction table when it has appeared in **≥3 of their last 10 videos** with a consistent thesis; it drops when it hasn't been mentioned in the last 10 videos. Optimizer does **not** re-derive this from journal history each day — it just reads the profile.
+The creator profiles in `skills/youtube/youtube_<slug>.md` are the source of truth for each creator's current conviction set. A name joins a creator's table when it has appeared in **≥3 of their last 10 videos** with a consistent thesis; it drops when it hasn't been mentioned in the last 10. Optimizer reads the profile, doesn't re-derive it.
 
 ### Exit trigger
 
@@ -105,7 +124,7 @@ The bet: a winner keeps winning. *No margin of safety* in the entry price — yo
 
 ### Entry criteria (all should hold)
 
-1. **Strong consensus:** **3+ favorable signals** from `{each YouTuber, online research}` (versus 2 for mean-reversion). "Favorable" definitions are the same as in the mean-reversion section above. Momentum entry effectively requires multi-source confirmation, so with too few inputs (e.g., 1 YouTuber + online = 2 total signals) the momentum bucket is dormant.
+1. **Strong conviction read.** Momentum buys at strength with no margin of safety, so it requires a **strong** read (per the mean-reversion conviction section) — the strongest opinion support, not a fixed count. The same **hard lines apply, including "not overvalued"**: a name that has already run past analyst targets (PT < price + 10%) is *not* an actionable momentum entry — that's the brake against chasing. It can still be surfaced for discussion, marked blocked.
 2. **Catalyst:** a fresh fundamental driver (earnings beat with raised guide, major contract, design win, deal close) — *or* a recent pullback that optimizer judges as a constructive entry point.
 3. **Regularizer veto:** the top named consensus-trade-risk in today's regularizer section disqualifies (same rule as mean-reversion).
 

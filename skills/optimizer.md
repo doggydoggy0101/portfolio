@@ -10,8 +10,8 @@ Assumes by the time it runs:
 
 ## Inputs
 
-- `skills/rule.md` — constraints, exit triggers, position caps, opinion filter, regularizer veto rule.
-- `skills/youtube.md` — YouTuber conviction tables (the "current mindset" of each tracked YouTuber).
+- `skills/rule.md` — constraints, exit triggers, position caps, hard lines + conviction-read sizing, regularizer veto rule.
+- `skills/youtube/youtube_*.md` — per-creator conviction tables (the "current mindset" of each tracked YouTuber).
 - Today's journal — all prior sections.
 - Previous journal — one-day-back context (rejected proposals, prior session's decisions, recurring user concerns).
 - `data/ira/transactions.csv` — holdings, cost basis, realized P&L.
@@ -26,7 +26,7 @@ Tickers that warrant consideration today:
 - **Held positions** — every ticker the user currently owns.
 - **Watchlist tickers** — every non-held ticker on the watchlist.
 - **Pending-order tickers** — if a name has an open order, check whether the order should be modified or canceled.
-- **Strong cross-channel YouTuber picks** — names in 2+ YouTuber conviction tables that aren't already held or watchlisted, if they pass the rules.
+- **New buy ideas to surface proactively** — names that look interesting *today*, even if not held or watchlisted: creators' conviction-table picks, names with a material drawdown **and** analyst upside in today's online research, recent earnings beats with raised targets. The optimizer's job is to **bring candidates to the table**, not only react to the user's. Surface a ranked shortlist as options (see step 3a). It is fine — expected on most days — for the shortlist to be short or empty; **never manufacture an idea to fill it.**
 
 ### 2. Apply rules to each candidate
 
@@ -34,7 +34,8 @@ Walk every ticker through the rule checks defined in `skills/rule.md`:
 
 - **Position size check.** Over cap? At cap? Room to add? Cap violations are *warnings* (per rule.md cap-as-warning rule), not forced trims — surface them and offer an *optional* accelerated trim; the default exit ladder will rebalance naturally otherwise.
 - **Default exit ladder maintenance.** For every non-core held position, verify a current 2-tier sell ladder exists in `data/ira/order.csv`. Call `compute_exit_ladder(ticker)` for the precise tier 1 / tier 2 prices. Propose new ladders for positions without one; propose refreshes when avg_cost has changed (e.g., after an add).
-- **Opinion filter.** Count favorable signals from `{each YouTuber, online research}` — at least 2 for mean-reversion, at least 3 for momentum (rule scales with N YouTubers). "Favorable" per the table in rule.md.
+- **Hard lines (pass/fail).** Per rule.md: material drawdown, quality, no earnings collapse, **not overvalued** (analyst PT ≥ price + 10% — a bright line), and the regularizer top-flag veto. If any fails, it's not actionable — but keep it on the discussion slate, marked blocked + which line failed.
+- **Conviction read → size.** Once the hard lines pass, weigh the favorable opinion evidence (creators who *cover* the name + degree of analyst upside; a creator who doesn't cover it counts as nothing). Translate to a **strong / moderate / thin** read and size accordingly (full ~5% / starter ~2.5% / toe-hold ~1-2%). State the weighting in writing. Conviction sets size, not yes/no.
 - **Regularizer veto.** Parse `**Top flag (hard veto): TICKER**` from today's regularizer section. If a candidate ticker matches the top flag, disqualify it.
 - **Quality filter** (mean-reversion) — does the entry criterion hold?
 - **Catalyst** (momentum) — fresh driver?
@@ -49,37 +50,47 @@ Each ticker either generates a proposal or is silently skipped. Optimizer judges
 For each ticker that warrants action, build a proposal with:
 - **Action** — BUY / SELL / TRIM / CANCEL / MODIFY
 - **Rule that fired** — exactly which clause in rule.md generated this proposal
-- **Opinion support count** — N favorable signals (out of `{each YouTuber, online research}`), naming which signaled favorable
+- **Conviction read** — strong / moderate / thin, naming which sources are favorable and how they're weighted
+- **Case for / case against** — the bull case in one or two lines, then the pushback (the risk if it's wrong). Every idea carries both.
 - **Regularizer status** — top flag? warning? neither?
-- **Suggested size** — within position cap
+- **Suggested size** — scaled to the conviction read, within the position cap
 - **Suggested price** — limit price (often pegged to recent close or analyst consensus PT)
 - **Suggested expires** — typically **180 days** (matches the user's broker GTC default and existing orders). Optimizer can shorten for time-sensitive proposals; users can override per proposal.
 
-### 4. Open with the full list, then drill in
+### 4. Open with the full slate, then drill in
+
+Lead with **two groups** so the user always has options to *consider*, not just defenses to react to:
 
 ```
-=== Today's proposed adjustments (N total) ===
+=== Today's slate ===
 
-1. <ACTION> <TICKER> — <one-line summary>
-2. <ACTION> <TICKER> — <one-line summary>
-3. <ACTION> <TICKER> — <one-line summary>
-...
+A) Ideas to consider — new buys (options, not mandates):
+  1. <TICKER> — <one-line setup> — conviction <strong/moderate/thin>, ~X% — [actionable]
+  2. <TICKER> — <one-line setup> — [blocked: <hard line that failed>] (discussion only)
+  ...
+  (If nothing compelling: "No strong new buys today. Closest is <TICKER>, not there because <reason>." Do NOT manufacture ideas.)
 
-(If N is 0: "No actions proposed today. Holdings are in compliance with the rules; no new candidates qualify.")
+B) Position management — held / orders:
+  1. <ACTION> <TICKER> — <one-line summary>
+  ...
+  (If none: "Holdings in compliance; no management actions today.")
 
 ---
-Proposal 1 of N: <ACTION> <TICKER>
+Item 1 of N: <ACTION> <TICKER>
 
-**Why:** <which rule fired, with the math>
-**Opinion support:** <N favorable signals — list which (YouTubers + online)>
+**Why:** <which rule fired, with the math — or, for a new idea, the setup>
+**Conviction read:** <strong / moderate / thin — which sources favorable, how weighted>
+**Case for / against:** <bull case> // <the pushback>
 **Regularizer:** <top flag / warning / clear>
-**Suggested size:** <amount, with cap check>
+**Suggested size:** <amount scaled to conviction, with cap check>
 **Suggested price:** <limit>
 **Suggested expires:** <date>
 **What would change this view:** <falsifiable condition>
 
 → Awaiting user response (yes / no / modify / discuss).
 ```
+
+The Ideas group is the new contract: the optimizer **proactively recommends** candidates worth a look (with the case against attached) — the user no longer has to invent buys just to get a pushback. Recommending is not urging: every idea ships with its own dissent, and "nothing compelling today" is a valid, common slate.
 
 ### 5. Walk one proposal at a time
 
@@ -89,8 +100,11 @@ For each proposal, take user response:
 - **No** — lock the rejection (with optional reason). Move to next.
 - **Modify** — user adjusts size/price/expires. Confirm the modified version. Lock. Move to next.
 - **Discuss** — engage substantively. Don't push back hard, but answer questions and surface relevant data from the journal. Once the user is ready, ask yes/no/modify.
+- **Override** — when the user directs a buy that **fails a hard line** (overvalued, regularizer veto, below the cash floor) or goes against the conviction read, do it if they insist — it's an advisory system, the user's call — but **log it as an explicit override**, not a silent rule-break: name which line it broke, the user's reason, and the optimizer's one-line dissent. Overrides are *tracked* (see below), not forbidden.
 
 After proposal N is decided, present proposal N+1. **Do not batch.** Sequential.
+
+**Overrides are a feature, not a failure.** They give the user agency while keeping the discipline visible: because each is logged with its blocker and the dissent, the **monthly/quarterly review** (per rule.md "revisit based on what the journal track record shows") can ask the only question that matters — did the overrides beat just holding VOO? That turns friction into evidence, and tells us whether to relax a rule or trust it more.
 
 ### 6. End-of-session summary
 
@@ -111,6 +125,9 @@ When all proposals have been decided, write a `# Optimizer session` block to tod
 
 ## Discussion notes
 - <any substantive points raised during the chat>
+
+## Overrides (if any)
+- <TICKER> — broke <which hard line / against conviction read>; user reason: <...>; optimizer dissent: <one line>
 
 ## Appended to data/ira/order.csv
 - date_added=YYYY-MM-DD, ticker=..., action=..., price=..., quantity=..., expires=..., note=...
@@ -158,10 +175,10 @@ A proposal must never:
 
 ## What optimizer does NOT do
 
-- Does not fetch new data — everything it needs is already in today's journal + skills/youtube.md + data/*.csv.
+- Does not fetch new data — everything it needs is already in today's journal + skills/youtube/*.md + data/ira/*.csv.
 - Does not run other skills.
 - Does not place orders at the broker — output is just `data/ira/order.csv` rows.
-- Does not modify `skills/rule.md`, `skills/youtube.md`, or any other skill file.
+- Does not modify `skills/rule.md`, `skills/youtube.md`, the `skills/youtube/` profiles, or any other skill file.
 - Does not propose vetoed names.
 - Does not auto-decide. Every order requires explicit user yes.
 - Does not log discussion turn-by-turn in journal. Only the end-of-session summary is journaled.
