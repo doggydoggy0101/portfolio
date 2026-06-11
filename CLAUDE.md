@@ -23,18 +23,27 @@ When the user opens a new session and triggers the daily run (asks for "morning 
    3. `skills/youtube.md` — pull new transcripts → summarize via parallel subagents → maintain per-YouTuber conviction tables in the skill file itself.
    4. `skills/online.md` — independent web research per ticker (held + watchlist + pending-order union).
    5. `skills/regularizer.md` — dissent. Reads prior journal sections, produces the load-bearing `**Top flag (hard veto): TICKER**` line.
-   6. `skills/optimizer.md` — read everything (including `# Portfolio state` from step 2), propose order adjustments, discuss one-at-a-time with user, append agreed orders to `data/order.csv`, log full session to journal.
+   6. `skills/optimizer.md` — read everything (including `# Portfolio state` from step 2), propose order adjustments, discuss one-at-a-time with user, append agreed orders to `data/ira/order.csv`, log full session to journal.
 
 Triggers are session-based, not time-based. The user closes and re-opens; the journal-existence check is the only state needed.
 
+## Accounts
+
+There are **two accounts**, each with its own data folder under `data/` (gitignored):
+
+- **`ira`** (`data/ira/`) — the Roth IRA. This is the **actively managed** account: the daily loop, sleeves, exit ladders, cash floor, and the entire `skills/rule.md` doctrine apply *only* here. Gains are tax-free (sell freely; no cap-gains considerations).
+- **`general`** (`data/general/`) — the **taxable** brokerage account. **Passive** by design: buy-and-hold VOO for the long term. No sleeves, no ladders, no daily optimizer. It shows in the TUI and tracks performance, but the daily loop does **not** manage it. Being taxable, sales here *do* have capital-gains consequences (mostly moot for buy-and-hold VOO).
+
+The daily session flow (reconcile → position → … → optimizer) runs against **`ira` only**. `loader.ACCOUNTS = ("ira", "general")`, default account is `"ira"`.
+
 ## Data files
 
-All sensitive/personal financial data lives in `data/` (gitignored). Read the appropriate file when you need facts about the account — do not assume any specific amounts or counts.
+Each account folder holds the same three files; the watchlist is shared at the top level. Read the appropriate file when you need facts about an account — do not assume any specific amounts or counts.
 
-- **Trade history:** `data/transactions.csv` — broker raw export is authoritative. Re-exports replace the file wholesale. Between re-exports, `skills/reconcile.md` appends user-confirmed fills to keep it in sync with reality. Periodic manual re-export (every few weeks) is the reset; any drift becomes visible at that point.
-- **Deposit history:** `data/deposit.csv` — one row per deposit/withdrawal.
-- **Open orders:** `data/order.csv` — pending limit orders mirrored from the brokerage. Optimizer appends new rows on user agreement. Reconcile removes rows on confirmed fill or expiry.
-- **Watchlist:** `data/watchlist.txt` — one ticker per line, `#` comments allowed. Filtered against holdings in the TUI.
+- **Trade history:** `data/<account>/transactions.csv` — broker raw export is authoritative. Re-exports replace that account's file wholesale (export each account separately from the broker). Between re-exports, `skills/reconcile.md` appends user-confirmed fills (IRA only). Periodic manual re-export is the reset; any drift becomes visible at that point.
+- **Deposit history:** `data/<account>/deposit.csv` — one row per deposit/withdrawal.
+- **Open orders:** `data/<account>/order.csv` — pending limit orders mirrored from the brokerage. Optimizer appends new IRA rows on user agreement. Reconcile removes IRA rows on confirmed fill or expiry.
+- **Watchlist:** `data/watchlist.txt` — **shared across accounts**, one ticker per line, `#` comments allowed. Filtered against holdings in the TUI.
 
 ## Running
 
@@ -42,7 +51,7 @@ All sensitive/personal financial data lives in `data/` (gitignored). Read the ap
 python main.py
 ```
 
-Launches the Textual TUI. `Esc` quits, `Ctrl+R` reloads data (re-reads `data/*.csv` and refreshes the Position table + Open Orders pane; charts are kept). No subcommands — the TUI is the only entry point.
+Launches the Textual TUI. `Esc` quits, `Ctrl+R` reloads data (re-reads the active account's `data/<account>/*.csv` and refreshes the Position table + Open Orders pane; charts are kept). The **account switch** (IRA / General buttons in the bottom bar, or `Ctrl+1` / `Ctrl+2`) flips the active account and refreshes every pane. The bottom bar also has clickable `Reload` / `Quit` buttons. No subcommands — the TUI is the only entry point.
 
 Deps in `requirements.txt`. Install: `pip install -r requirements.txt`. Repo uses a `.venv/` for development.
 
@@ -59,30 +68,32 @@ Layout (Tokyo Night Storm palette throughout, defined as a Textual theme):
 │                        │  Holdings: range tabs + charts   │
 ├────────────────────────┤  Watchlist: same shape, filtered │
 │ [Order Buy] [Order Sell]│   against holdings              │
-│                        │                                  │
 │  Open Orders           │                                  │
-│  (data/order.csv)      │                                  │
-└────────────────────────┴──────────────────────────────────┘
+│  (active account)      │                                  │
+├────────────────────────┴──────────────────────────────────┤
+│  General  IRA                      Reload  Quit  09:51:41  │  ← BottomBar
+└─────────────────────────────────────────────────────────────┘
 ```
 
-- **Performance pane** (top-left): TWR % since first deposit, blue line for Portfolio, orange line for SPY benchmark.
-- **Open Orders pane** (bottom-left): `TabbedContent` with Order Buy / Order Sell tabs. Each tab renders a small `rich.Table` filtered from `data/order.csv`. Columns: ticker, price, qty, expires, gain-or-vs-ATH (rightmost). Sell's "Gain" column is green, Buy's "vs ATH" column is red.
+- **BottomBar** (bottom): a `BottomBar(Horizontal)` replacing Textual's `Footer`/`Header`. Left: account-switch buttons in `loader.ACCOUNTS` order — currently `General` then `IRA` (flat `barbtn` style; the button for `DEFAULT_ACCOUNT` carries the `active` class on launch). Right: `Reload` and `Quit` action buttons + a live clock (`Static`, updated each second). All four are flat `Button`s. `StockTUI.on_button_pressed` routes `acct-*` → `_switch_account`, `btn-reload` → `action_reload`, `btn-quit` → `exit()`. Account switching is **also bound to `Ctrl+N`** (N = button position, so `Ctrl+1` = General, `Ctrl+2` = IRA) via `action_switch_account`; both keyboard and click work. `_switch_account` flips `StockTUI.account`, moves the `active` class, remounts the Performance pane, and repopulates every pane.
+- **Performance pane** (top-left): TWR % since first deposit, blue line for Portfolio, orange line for SPY benchmark. Reads the active account (returns blank if that account has no trades yet).
+- **Open Orders pane** (bottom-left): `TabbedContent` with Order Buy / Order Sell tabs. Each tab renders a small `rich.Table` filtered from the active account's `order.csv`. Columns: ticker, price, qty, expires, gain-or-vs-ATH (rightmost). Sell's "Gain" column is green, Buy's "vs ATH" column is red.
 - **Position tab** (right): rich.Table — Price / Day / Total / Value columns. Each stock spans two text rows. Price cell shows current price on top and `(ATH)` below in dim. CASH and TOTAL rows below.
 - **Holdings tab** (right): inner `Tabs` widget at top for time range (1d / 5d / 15d / 1m / 3m / 6m / 1y / max) + scrollable list of per-ticker charts. Border title is `TICKER  $current  ($ATH)` — drops parts that aren't available. Switching range rebuilds the chart widgets (in-place mutation hits a textual-plotext render-state bug).
-- **Watchlist tab** (right): same widget as Holdings, fed from `data/watchlist.txt`, filtered to exclude tickers in Holdings.
+- **Watchlist tab** (right): same widget as Holdings, fed from the shared `data/watchlist.txt`, filtered to exclude tickers in Holdings.
 - Heights: left column is Performance:Orders ≈ 5:8 (Fibonacci ~golden ratio). Right column has `max-width: 64` so it doesn't bloat on wide terminals — the left side expands instead.
 
 ## Source files
 
 - `main.py` — single-line launcher: imports `tui.StockTUI` and runs it.
-- `src/tui.py` — Textual `StockTUI` app. Defines layout, `PerformancePane`, `OrdersView`, `StockChartItem`, `HoldingsView`. Styles in `src/tui.tcss`.
-- `src/loader.py` — `load_transactions()`, `load_deposits()`, `load_orders()`, `load_watchlist()`. Each reads its respective file in `data/`.
+- `src/tui.py` — Textual `StockTUI` app. Defines layout, `BottomBar` (account switch + Reload/Quit + clock), `PerformancePane`, `OrdersView`, `StockChartItem`, `HoldingsView`. Styles in `src/tui.tcss`.
+- `src/loader.py` — `load_transactions(account)`, `load_deposits(account)`, `load_dividends(account)`, `load_orders(account)` each read `data/<account>/<file>.csv` (default `account="ira"`); `load_watchlist()` reads the shared `data/watchlist.txt`. `ACCOUNTS` lists the account ids; `account_path(account, filename)` resolves a per-account file.
 - `src/portfolio.py` — `compute_book(trades)` walks trades chronologically (FIFO) and returns `(positions_df, realized_pnl)`. `compute_positions(trades)` is a thin wrapper.
 - `src/price.py` — `fetch_prices(tickers)` (current + previous close), `fetch_ath(tickers)` (all-time high), `fetch_latest_bar_time(ticker)`. All fetches run in parallel via `ThreadPoolExecutor`.
 - `src/position.py` — `build_position_view(trades)` computes the per-position DataFrame; `build_positions_table(df, cash, ath)` builds the rich.Table rendered in the Position tab. `build_state_markdown()` and CLI produce the daily `# Portfolio state` journal section. `compute_sp500_since_entry(ticker)` returns the dollar-weighted SPY total return since each buy. `compute_exit_ladder(ticker)` returns the precise 2-tier sell limit prices per `skills/rule.md`.
 - `src/order.py` — `build_orders_table(orders, action, positions, ath)` filters and renders the Order Buy / Order Sell tables. Sell tab shows Gain% vs avg cost; Buy tab shows % vs ATH.
 - `src/chart.py` — `render_chart(plt_ctx, ticker, range_, theme, hide_xaxis, hist)` draws a single-ticker chart. `bulk_fetch_history(tickers, range_)` parallelizes history fetches for many tickers at once.
-- `src/performance.py` — `render_performance(plt_ctx, range_, theme)` draws portfolio TWR + benchmark(s). Uses real deposit dates from `data/deposit.csv`.
+- `src/performance.py` — `render_performance(plt_ctx, range_, theme, account)` draws portfolio TWR + benchmark(s) for one account. Uses real deposit dates from that account's `deposit.csv`.
 
 ## Conventions
 
@@ -93,6 +104,6 @@ Layout (Tokyo Night Storm palette throughout, defined as a Textual theme):
 
 ## When working in this repo
 
-- `data/transactions.csv` is **broker-authoritative on wholesale re-export** — when the user re-exports from the brokerage, the file is replaced wholesale. Between re-exports, `skills/reconcile.md` appends user-confirmed fills to keep the file in sync with reality (only modification mode allowed). No other skill or script writes to it.
+- `data/<account>/transactions.csv` is **broker-authoritative on wholesale re-export** — when the user re-exports an account from the brokerage, that file is replaced wholesale. Between re-exports, `skills/reconcile.md` appends user-confirmed fills to keep the file in sync with reality (only modification mode allowed). No other skill or script writes to it.
 - Any *derived* data (positions DataFrame, sleeve breakdown, exit ladders) goes elsewhere — `src/position.py` computes them on demand, `journal/*.md` snapshots them.
 - All formatting/linting via `ruff format .` after edits (per global instructions).

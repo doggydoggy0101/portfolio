@@ -1,7 +1,7 @@
 """Performance rendering: portfolio time-weighted return (TWR) vs S&P 500.
 
 TWR is the standard brokerage performance metric — what most brokerage apps display.
-Uses real deposit dates from `data/deposit.csv`.
+Uses real deposit dates from the account's `data/<account>/deposit.csv`.
 """
 
 from concurrent.futures import ThreadPoolExecutor
@@ -112,7 +112,9 @@ def _to_pct(series: pd.Series) -> list[float]:
     return ((series / series.iloc[0] - 1) * 100).tolist()
 
 
-def render_performance(plt_ctx, range_: str = "max", theme: dict | None = None) -> bool:
+def render_performance(
+    plt_ctx, range_: str = "max", theme: dict | None = None, account: str = "ira"
+) -> bool:
     """Render perf chart into the given plotext-like context. Returns False on no data.
 
     `theme` (all keys optional):
@@ -120,14 +122,15 @@ def render_performance(plt_ctx, range_: str = "max", theme: dict | None = None) 
         benchmarks: {ticker: color} override (default uses BENCHMARKS table)
         plotext_theme: name passed to plt_ctx.theme(...) — default "pro"
         canvas_color / axes_color / ticks_color: explicit overrides
+    `account`: which account's trades/deposits to chart (default "ira").
     """
     theme = theme or {}
     portfolio_color = theme.get("portfolio", PORTFOLIO_COLOR)
     bench_override = theme.get("benchmarks", {})
     plotext_theme = theme.get("plotext_theme", "pro")
 
-    trades = load_transactions()
-    deposits = load_deposits()
+    trades = load_transactions(account)
+    deposits = load_deposits(account)
     if trades.empty:
         return False
 

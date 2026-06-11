@@ -25,7 +25,7 @@ Keys: `Esc` quits, `Ctrl+R` reloads.
 ├── requirements.txt
 ├── pyproject.toml        ruff config
 ├── skills/               AI skill files — one per step of the daily loop
-│   ├── reconcile.md      step 1: sync data/order.csv ↔ data/transactions.csv
+│   ├── reconcile.md      step 1: sync data/ira/order.csv ↔ data/ira/transactions.csv
 │   ├── position.md       step 2: compute portfolio state, log to journal
 │   ├── youtube.md        step 3: pull + summarize YouTuber videos
 │   ├── online.md         step 4: independent web research per ticker
@@ -45,16 +45,19 @@ Keys: `Esc` quits, `Ctrl+R` reloads.
 │   ├── reconcile.py      deterministic price-cross check for open orders
 │   └── youtube.py        channel resolver + transcript fetcher
 ├── data/                 personal state (gitignored)
+│   ├── ira/              Roth IRA — actively managed (transactions/deposit/order.csv)
+│   ├── general/          taxable — passive buy-and-hold VOO (same three files)
+│   └── watchlist.txt     shared across accounts
 └── journal/              AI loop log, one .md per day (gitignored)
 ```
 
 ## Data file formats
 
-All in `data/` (gitignored).
+Each account has its own folder under `data/` (gitignored): **`data/ira/`** (Roth, actively managed by the daily loop) and **`data/general/`** (taxable, passive VOO). Both hold the same three files below; `watchlist.txt` is shared at the top level. The active loop reads/writes `data/ira/` only.
 
 ### `transactions.csv` — broker raw export
 
-Re-exported wholesale from the brokerage every few weeks. Between re-exports, `skills/reconcile.md` appends user-confirmed fills.
+Re-exported wholesale per account from the brokerage every few weeks. Between re-exports, `skills/reconcile.md` appends user-confirmed fills (IRA).
 
 Columns (broker format — preserved verbatim from export):
 
@@ -103,5 +106,5 @@ See `CLAUDE.md` for the full flow. Brief version:
 3. CLAUDE.md checks if `journal/YYYY-MM-DD.md` exists.
    - **Yes** → read it, wait for direction.
    - **No** → run reconcile → position → youtube → online → regularizer → optimizer.
-4. Optimizer walks proposed orders one-at-a-time. Agreed orders append to `data/order.csv`.
+4. Optimizer walks proposed orders one-at-a-time. Agreed orders append to `data/ira/order.csv`.
 5. Optimizer logs the session (proposals + decisions + reasoning) to today's journal.

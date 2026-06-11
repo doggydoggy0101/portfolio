@@ -1,19 +1,32 @@
 """Terminal UI — see CLAUDE.md for the full layout diagram."""
 
+from datetime import datetime
+
 import pandas as pd
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.theme import Theme
-from textual.widgets import Footer, Header, Static, Tab, TabbedContent, TabPane, Tabs
+from textual.widgets import Button, Static, Tab, TabbedContent, TabPane, Tabs
 from textual_plotext import PlotextPlot
 
 import chart
 import performance
-from loader import load_deposits, load_dividends, load_orders, load_transactions, load_watchlist
+from loader import (
+    ACCOUNTS,
+    DEFAULT_ACCOUNT,
+    load_deposits,
+    load_dividends,
+    load_orders,
+    load_transactions,
+    load_watchlist,
+)
 from order import build_history_table, build_orders_table
 from portfolio import compute_positions
 from position import build_position_view, build_positions_table
 from price import fetch_ath, fetch_prices
+
+# Display labels for the account switch (keys match loader.ACCOUNTS).
+ACCOUNT_LABELS = {"ira": "IRA", "general": "General"}
 
 # Tokyo Night Storm palette as RGB tuples — plotext doesn't honor hex strings.
 TN_STORM = {
@@ -59,12 +72,43 @@ CHART_THEME = {
 }
 
 
+class BottomBar(Horizontal):
+    """Bottom bar: account switch (left) + Reload/Quit actions and clock (right).
+
+    All controls are flat `barbtn` buttons; the active account button carries the
+    `active` class. Account switch is also bound to Ctrl+1 / Ctrl+2 on the app.
+    """
+
+    def compose(self) -> ComposeResult:
+        for a in ACCOUNTS:
+            yield Button(
+                ACCOUNT_LABELS[a],
+                id=f"acct-{a}",
+                classes="barbtn active" if a == DEFAULT_ACCOUNT else "barbtn",
+            )
+        yield Static(id="bar-spacer")  # 1fr — pushes the rest to the right
+        yield Button("Reload", id="btn-reload", classes="barbtn")
+        yield Button("Quit", id="btn-quit", classes="barbtn")
+        yield Static("", id="clock")
+
+    def on_mount(self) -> None:
+        self._tick()
+        self.set_interval(1.0, self._tick)
+
+    def _tick(self) -> None:
+        self.query_one("#clock", Static).update(datetime.now().strftime("%H:%M:%S"))
+
+
 class PerformancePane(PlotextPlot):
-    """Top-left: portfolio TWR vs S&P 500 since inception."""
+    """Top-left: portfolio TWR vs S&P 500 since inception, for one account."""
+
+    def __init__(self, account: str = "ira", **kwargs):
+        super().__init__(**kwargs)
+        self._account = account
 
     def on_mount(self) -> None:
         self.theme = "clear"
-        performance.render_performance(self.plt, "max", theme=PERF_THEME)
+        performance.render_performance(self.plt, "max", theme=PERF_THEME, account=self._account)
 
 
 class StockChartItem(PlotextPlot):
@@ -115,14 +159,18 @@ class OrdersView(Vertical):
                 yield VerticalScroll(id="history-scroll", classes="scroll-pane")
 
     def populate(
-        self, positions: pd.DataFrame, ath: dict[str, float], trades: pd.DataFrame
+        self,
+        positions: pd.DataFrame,
+        ath: dict[str, float],
+        trades: pd.DataFrame,
+        account: str = "ira",
     ) -> None:
         """Wire data in. Called from `StockTUI.on_mount` after ATH is fetched.
         Idempotent — clears existing tables before mounting fresh ones, so it
         can also be called from a reload action."""
         self._positions = positions
         self._ath = ath
-        orders = load_orders()
+        orders = load_orders(account)
         buy = self.query_one("#buy-scroll", VerticalScroll)
         sell = self.query_one("#sell-scroll", VerticalScroll)
         history = self.query_one("#history-scroll", VerticalScroll)
@@ -209,21 +257,27 @@ class StockTUI(App):
     # it gets in the way.
     ENABLE_COMMAND_PALETTE = False
 
+    account = DEFAULT_ACCOUNT  # active account; flipped by the BottomBar buttons / Ctrl+N
+
     BINDINGS = [
         ("escape", "quit", "Quit"),
-        # Re-read data/*.csv and re-render the dynamic panes (Position table,
-        # Open Orders). Useful after a Claude Code chat session updates
-        # data/order.csv or data/transactions.csv. Charts are kept as-is
-        # (re-fetching all chart history is expensive — restart the TUI if
-        # you need a full refresh).
+        # Re-read the active account's data/<account>/*.csv and re-render the
+        # dynamic panes (Position table, Open Orders). Useful after a Claude
+        # Code chat session updates order.csv or transactions.csv. Charts are
+        # kept as-is (re-fetching all chart history is expensive — restart the
+        # TUI if you need a full refresh).
         ("ctrl+r", "reload", "Reload"),
+        # Ctrl+N selects the N-th account button (1 = leftmost), matching ACCOUNTS order.
+        *[
+            (f"ctrl+{i + 1}", f"switch_account('{a}')", ACCOUNT_LABELS[a])
+            for i, a in enumerate(ACCOUNTS)
+        ],
     ]
 
     def compose(self) -> ComposeResult:
-        yield Header(show_clock=True)
         with Horizontal(id="main"):
             with Vertical(id="left"):
-                yield PerformancePane(id="performance")
+                yield PerformancePane(account=DEFAULT_ACCOUNT, id="performance")
                 yield OrdersView(id="orders")
             with TabbedContent(id="right-tabs"):
                 with TabPane("Position", id="tab-cols"):
@@ -232,12 +286,47 @@ class StockTUI(App):
                     yield HoldingsView(id="holdings-view")
                 with TabPane("Watchlist", id="tab-watchlist"):
                     yield HoldingsView(id="watchlist-view")
-        yield Footer()
+        yield BottomBar(id="bottombar")
 
     def on_mount(self) -> None:
         self.register_theme(TOKYO_NIGHT_STORM)
         self.theme = "tokyo-night-storm"
         self._populate_dynamic_panes()
+
+    async def on_button_pressed(self, event: Button.Pressed) -> None:
+        bid = event.button.id or ""
+        if bid.startswith("acct-"):
+            await self._switch_account(bid.removeprefix("acct-"))
+        elif bid == "btn-reload":
+            self.action_reload()
+        elif bid == "btn-quit":
+            self.exit()
+
+    async def action_switch_account(self, account: str) -> None:
+        """Keyboard entry point (Ctrl+1 / Ctrl+2) for the account switch."""
+        await self._switch_account(account)
+
+    async def _switch_account(self, account: str) -> None:
+        """Flip the active account and refresh every pane (Performance, Orders,
+        Position, Holdings/Watchlist) to read that account's data."""
+        if account == self.account or account not in ACCOUNTS:
+            return
+        self.account = account
+        for a in ACCOUNTS:  # highlight the active account button
+            self.query_one(f"#acct-{a}", Button).set_class(a == account, "active")
+        # Remount the Performance pane (in-place plt mutation hits a
+        # textual-plotext render-state bug — same reason charts are rebuilt).
+        await self.query_one("#performance", PerformancePane).remove()
+        await self.query_one("#left", Vertical).mount(
+            PerformancePane(account=account, id="performance"),
+            before=self.query_one("#orders", OrdersView),
+        )
+        # Charts rebuild at 1d; keep range in sync with the prefetched history.
+        for vid in ("#holdings-view", "#watchlist-view"):
+            self.query_one(vid, HoldingsView)._current_range = "1d"
+        self.query_one("#cols-scroll", VerticalScroll).remove_children()
+        self._populate_dynamic_panes(refresh_charts=True)
+        self.notify(f"Switched to {ACCOUNT_LABELS[account]}.", timeout=2)
 
     def action_reload(self) -> None:
         """Re-read data/*.csv and refresh the Position table + Open Orders pane.
@@ -255,10 +344,11 @@ class StockTUI(App):
         (refresh_charts=False — chart history is expensive to re-fetch and
         the Holdings/Watchlist tabs already have their own range-switch reload).
         """
-        trades = load_transactions()
-        deposits = load_deposits()
-        dividends = load_dividends()
-        orders = load_orders()
+        account = getattr(self, "account", "ira")
+        trades = load_transactions(account)
+        deposits = load_deposits(account)
+        dividends = load_dividends(account)
+        orders = load_orders(account)
         df = build_position_view(trades)
         positions = compute_positions(trades)  # has avg_cost — used for sell-order Gain%
         cash = deposits["amount"].sum() + trades["amount"].sum() + dividends["amount"].sum()
@@ -289,9 +379,16 @@ class StockTUI(App):
         )
 
         # Open Orders pane (always refreshed; populate is idempotent)
-        self.query_one("#orders", OrdersView).populate(positions, ath, trades)
+        self.query_one("#orders", OrdersView).populate(positions, ath, trades, account=account)
 
         if refresh_charts:
+            # Clear any existing charts (account switch / re-mount) before rebuilding.
+            self.query_one("#holdings-view", HoldingsView).query_one(
+                "#charts-scroll", VerticalScroll
+            ).remove_children()
+            self.query_one("#watchlist-view", HoldingsView).query_one(
+                "#charts-scroll", VerticalScroll
+            ).remove_children()
             # Bulk-fetch 1d intraday data once for every chart we'll render.
             held_list = list(df.index)
             holdings_chart_data = chart.bulk_fetch_history(held_list, "1d") if held_list else {}

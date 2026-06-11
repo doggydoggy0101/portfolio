@@ -145,7 +145,7 @@ The user is not running a short-term strategy. Trends-break / moving-average / h
 
 ### Default exit ladders for held positions
 
-For every **non-core held position**, optimizer maintains a 2-tier sell ladder as standing limit orders in `data/order.csv`:
+For every **non-core held position**, optimizer maintains a 2-tier sell ladder as standing limit orders in `data/ira/order.csv`:
 
 - **Tier 1 limit price** = `avg_cost × (1 + SP500_return_since_entry) × 1.10`
 - **Tier 2 limit price** = `Tier 1 × 1.10` (another +10% above tier 1)
@@ -160,7 +160,7 @@ Each session, optimizer:
 2. Refreshes any stale ladder (e.g., after a position add changed avg_cost, or after a tier fired) — `compute_exit_ladder()` recomputes from the *current* transactions, so a refresh after adds is automatic.
 3. After a tier fires, decides whether to roll a fresh tier 2 up (continuing the +10% spacing) or pause until next session.
 
-The ladder lives in `data/order.csv` so the market does the work without requiring an active session.
+The ladder lives in `data/ira/order.csv` so the market does the work without requiring an active session.
 
 **Fundamental-break exit** still allows full immediate exit — the entry criteria are dead, no ladder needed.
 
@@ -176,7 +176,7 @@ Applies to **all sells**: cap-rebalance trims, exit-trigger trims, and any other
 - **Remainder is observed.** Whatever's left after the two tiers is held until the next session, at which point optimizer re-evaluates and may propose another laddered trim if the position is still over cap / still meets the exit trigger.
 - **Multi-session rebalance.** A heavily-over-cap position may take several sessions to bring under cap. That's the intended pace — captures upside if the stock keeps running, avoids one-shot regret if the tape reverses, and gives multi-day observation.
 
-For example, a held position might have two sell limit orders at, say, +5% and +15% above the current price — same ticker, different tiers — both sitting in `data/order.csv` until one or both fill.
+For example, a held position might have two sell limit orders at, say, +5% and +15% above the current price — same ticker, different tiers — both sitting in `data/ira/order.csv` until one or both fill.
 
 ### Cash discipline
 

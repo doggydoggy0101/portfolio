@@ -9,7 +9,7 @@ The deliberate dissenter. Reads all prior research in today's journal (per-YouTu
 3. Argues the **other side** for each, using only data already present in the journal.
 4. Surfaces **3-5 risks all prior sources underweight** — things nobody stressed.
 5. Names **2-3 framing errors / blind spots shared by the others** — meta-critique of how everyone is thinking.
-6. Plays **devil's advocate against 2-3 of the user's current holdings** in `data/transactions.csv`. Framing: "here are the risks if it goes wrong," not "you should sell."
+6. Plays **devil's advocate against 2-3 of the user's current holdings** in `data/ira/transactions.csv`. Framing: "here are the risks if it goes wrong," not "you should sell."
 
 ## What it does NOT do
 

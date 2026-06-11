@@ -1,10 +1,10 @@
 # Skill: reconcile
 
-The first step of the daily flow. Brings the portfolio state file (`data/transactions.csv`) in sync with reality by detecting probable order fills and asking the user to confirm.
+The first step of the daily flow. Brings the portfolio state file (`data/ira/transactions.csv`) in sync with reality by detecting probable order fills and asking the user to confirm.
 
 The bridge between two files:
-- `data/order.csv` (what's pending at the broker)
-- `data/transactions.csv` (what's actually executed)
+- `data/ira/order.csv` (what's pending at the broker)
+- `data/ira/transactions.csv` (what's actually executed)
 
 Run only on the **first session of a new day** (per CLAUDE.md daily flow).
 
@@ -28,9 +28,9 @@ Run only on the **first session of a new day** (per CLAUDE.md daily flow).
      > "Order X (BUY/SELL N shares of TICKER @ $LIMIT) looks like it could have filled on YYYY-MM-DD — that day's [low/high] was $PRICE. Did this actually fill on your broker?"
 
 3. **On user response:**
-   - **Yes:** ask for actual fill price (often a few cents off the limit) and fill date. Append a row to `data/transactions.csv` and remove the row from `data/order.csv`.
-   - **No:** leave the row in `data/order.csv` unchanged (the broker rejected, or partial fill is still pending).
-   - **Expired/cancel:** remove the row from `data/order.csv` with no transaction append.
+   - **Yes:** ask for actual fill price (often a few cents off the limit) and fill date. Append a row to `data/ira/transactions.csv` and remove the row from `data/ira/order.csv`.
+   - **No:** leave the row in `data/ira/order.csv` unchanged (the broker rejected, or partial fill is still pending).
+   - **Expired/cancel:** remove the row from `data/ira/order.csv` with no transaction append.
 
 4. **Log a `# Reconciliation` section** at the top of today's journal:
    - Number of open orders checked.
@@ -38,11 +38,11 @@ Run only on the **first session of a new day** (per CLAUDE.md daily flow).
    - Each row appended to transactions.csv.
    - Each row removed from order.csv.
 
-If `data/order.csv` is empty, log just: "No open orders to reconcile."
+If `data/ira/order.csv` is empty, log just: "No open orders to reconcile."
 
 ## Schema for transactions.csv append
 
-`data/transactions.csv` is the broker's raw export — reconcile must match that schema so the loader can still parse the file. The loader (`src/loader.py::load_transactions`) reads these six columns:
+`data/ira/transactions.csv` is the broker's raw export — reconcile must match that schema so the loader can still parse the file. The loader (`src/loader.py::load_transactions`) reads these six columns:
 
 | Column | Value | Notes |
 |---|---|---|
@@ -55,7 +55,7 @@ If `data/order.csv` is empty, log just: "No open orders to reconcile."
 
 **If the broker export contains additional columns** (settlement date, commission, fees, account number, etc.), preserve the existing header and leave the extra columns empty for reconcile-appended rows. The loader only reads the six above; anything else is ignored on read but should still be present so future broker re-exports merge cleanly.
 
-**Implementation note:** read the existing `data/transactions.csv` with `pd.read_csv` (it'll strip the broker's UTF-8 BOM if present), build a row dict matching all columns (filling unused ones — Post Date, Settlement Date, Commissions, Description, etc. — with empty strings), append, write back. Don't write a fresh header — the file already has one. A typical brokerage export has ~30 columns; the loader only reads six (`Trade Date`, `Type`, `Ticker`, `Quantity`, `Price USD`, `Amount USD`).
+**Implementation note:** read the existing `data/ira/transactions.csv` with `pd.read_csv` (it'll strip the broker's UTF-8 BOM if present), build a row dict matching all columns (filling unused ones — Post Date, Settlement Date, Commissions, Description, etc. — with empty strings), append, write back. Don't write a fresh header — the file already has one. A typical brokerage export has ~30 columns; the loader only reads six (`Trade Date`, `Type`, `Ticker`, `Quantity`, `Price USD`, `Amount USD`).
 
 ## Discipline
 
@@ -78,7 +78,7 @@ The deterministic price-check helper is at `src/reconcile.py`. API:
 ```python
 from src.reconcile import reconcile, Finding
 
-findings = reconcile()  # uses data/order.csv and date.today() by default
+findings = reconcile()  # uses data/ira/order.csv and date.today() by default
 # Each finding is a dataclass with fields:
 #   idx, ticker, action, price, quantity, date_added, expires,
 #   status, evidence_date, evidence_price, note

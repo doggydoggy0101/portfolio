@@ -47,6 +47,9 @@ def compute_book(trades: pd.DataFrame) -> tuple[pd.DataFrame, float]:
                 "cost_basis": cost,
             }
         )
+    cols = ["shares", "avg_cost", "cost_basis"]
+    if not rows:  # no open positions (e.g. a brand-new account with only a deposit)
+        return pd.DataFrame(columns=cols, index=pd.Index([], name="ticker")), realized
     return pd.DataFrame(rows).set_index("ticker").sort_index(), realized
 
 

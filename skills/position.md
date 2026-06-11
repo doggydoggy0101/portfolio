@@ -17,10 +17,10 @@ The python in `src/position.py` is the source of truth for the math. This skill 
 ## What the python computes
 
 For each call:
-- Cash = total deposits + sum of sells − sum of buys (from `data/deposit.csv` and `data/transactions.csv`).
+- Cash = total deposits + sum of sells − sum of buys (from `data/ira/deposit.csv` and `data/ira/transactions.csv`).
 - Per-position: shares, avg cost, current price (via `src/price.py`), value, % of active sleeve, % of total portfolio, P&L %.
 - Sleeve breakdown: core (VOO by default), active sleeve, cash float.
-- Open orders: from `data/order.csv`, with `days_left` to expiry.
+- Open orders: from `data/ira/order.csv`, with `days_left` to expiry.
 - Rule-compliance check:
   - Active-sleeve cash vs the 5% floor / 30% ceiling.
   - Per-name cap vs the 20% mean-rev cap. Reports each violation with the actual %. Violations are warnings per `skills/rule.md` (cap-as-warning rule) — the optimizer surfaces them but does not force trims.

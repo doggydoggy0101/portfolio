@@ -5,19 +5,28 @@ from pathlib import Path
 import pandas as pd
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
-TRANSACTIONS_CSV = DATA_DIR / "transactions.csv"
-DEPOSIT_CSV = DATA_DIR / "deposit.csv"
-ORDER_CSV = DATA_DIR / "order.csv"
+
+# Each account has its own subfolder (data/<account>/{transactions,deposit,order}.csv).
+# The watchlist is shared across accounts and lives at the top level.
+# ACCOUNTS is the UI display order (left→right); DEFAULT_ACCOUNT is the one
+# selected on launch (independent of order).
+ACCOUNTS = ("general", "ira")
+DEFAULT_ACCOUNT = "ira"
 WATCHLIST_TXT = DATA_DIR / "watchlist.txt"
 
 
-def load_transactions(path: Path = TRANSACTIONS_CSV) -> pd.DataFrame:
-    """Return a clean trades DataFrame.
+def account_path(account: str, filename: str) -> Path:
+    """Resolve a per-account data file, e.g. account_path('ira', 'order.csv')."""
+    return DATA_DIR / account / filename
+
+
+def load_transactions(account: str = DEFAULT_ACCOUNT, path: Path | None = None) -> pd.DataFrame:
+    """Return a clean trades DataFrame for `account`.
 
     Columns: date, ticker, action ('buy'|'sell'), quantity (positive),
     price (per share, USD), amount (signed USD: negative=buy, positive=sell).
     """
-    raw = pd.read_csv(path)
+    raw = pd.read_csv(path if path is not None else account_path(account, "transactions.csv"))
     trades = raw[raw["Type"].isin(["Buy", "Sell"])].copy()
     trades["date"] = pd.to_datetime(trades["Trade Date"], format="%m/%d/%Y")
     trades["ticker"] = trades["Ticker"].str.strip()
@@ -34,13 +43,13 @@ def load_transactions(path: Path = TRANSACTIONS_CSV) -> pd.DataFrame:
     )
 
 
-def load_dividends(path: Path = TRANSACTIONS_CSV) -> pd.DataFrame:
-    """Dividend/income cash rows from the transaction CSV (Type contains 'Dividend').
+def load_dividends(account: str = DEFAULT_ACCOUNT, path: Path | None = None) -> pd.DataFrame:
+    """Dividend/income cash rows from `account` (Type contains 'Dividend').
 
     Columns: date, ticker, amount (positive USD cash received). These add to cash
     like a sell, but never touch positions or realized P&L (no shares change hands).
     """
-    raw = pd.read_csv(path)
+    raw = pd.read_csv(path if path is not None else account_path(account, "transactions.csv"))
     div = raw[raw["Type"].astype(str).str.contains("Dividend", case=False, na=False)].copy()
     if div.empty:
         return pd.DataFrame(columns=["date", "ticker", "amount"])
@@ -50,19 +59,20 @@ def load_dividends(path: Path = TRANSACTIONS_CSV) -> pd.DataFrame:
     return div[["date", "ticker", "amount"]].sort_values("date").reset_index(drop=True)
 
 
-def load_deposits(path: Path = DEPOSIT_CSV) -> pd.DataFrame:
-    """Return deposits/withdrawals DataFrame: columns date, amount, notes.
+def load_deposits(account: str = DEFAULT_ACCOUNT, path: Path | None = None) -> pd.DataFrame:
+    """Return deposits/withdrawals DataFrame for `account`: columns date, amount, notes.
 
     Positive `amount` = deposit into the account, negative = withdrawal.
     """
-    df = pd.read_csv(path)
+    df = pd.read_csv(path if path is not None else account_path(account, "deposit.csv"))
     df["date"] = pd.to_datetime(df["date"])
     df["amount"] = df["amount"].astype(float)
     return df.sort_values("date").reset_index(drop=True)
 
 
-def load_orders(path: Path = ORDER_CSV) -> pd.DataFrame:
-    """Return open-orders DataFrame: ticker, action, price, quantity, date_added, expires, note."""
+def load_orders(account: str = DEFAULT_ACCOUNT, path: Path | None = None) -> pd.DataFrame:
+    """Return open-orders DataFrame for `account`: ticker, action, price, quantity, date_added, expires, note."""
+    path = path if path is not None else account_path(account, "order.csv")
     if not path.exists():
         return pd.DataFrame()
     df = pd.read_csv(path)

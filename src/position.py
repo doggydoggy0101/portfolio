@@ -234,8 +234,11 @@ def compute_exit_ladder(ticker: str, today=None) -> dict:
     }
 
 
-def build_state_markdown(today=None, core_ticker: str = "VOO") -> str:
+def build_state_markdown(today=None, core_ticker: str = "VOO", account: str = "ira") -> str:
     """Render the current portfolio state as a markdown section for the journal.
+
+    The daily active loop runs on the IRA account (sleeves, ladders, rules);
+    `account` is exposed for completeness but defaults to "ira".
 
     Shape:
       # Portfolio state — YYYY-MM-DD
@@ -251,10 +254,10 @@ def build_state_markdown(today=None, core_ticker: str = "VOO") -> str:
     if today is None:
         today = date.today()
 
-    trades = load_transactions()
-    deposits = load_deposits()
-    dividends = load_dividends()
-    orders = load_orders()
+    trades = load_transactions(account)
+    deposits = load_deposits(account)
+    dividends = load_dividends(account)
+    orders = load_orders(account)
 
     cash = _compute_cash(trades, deposits, dividends)
     df = build_position_view(trades)

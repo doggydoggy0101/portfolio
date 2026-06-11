@@ -7,8 +7,8 @@ An independent, objective read of the current state from primary web sources. Bu
 Each morning, before optimizer runs, produce three sections in today's journal:
 
 1. **Market snapshot** — macro state from primary data.
-2. **Held positions** — one entry per ticker in `data/transactions.csv` (active holdings).
-3. **Watchlist + pending orders** — one entry per ticker in `data/watchlist.txt`, plus any ticker in `data/order.csv` (pending orders) that isn't already covered above. Pending-order tickers matter because they're names the user has *already decided* to act on; their state needs fresh research even if they're not in the watchlist file.
+2. **Held positions** — one entry per ticker in `data/ira/transactions.csv` (active holdings).
+3. **Watchlist + pending orders** — one entry per ticker in `data/watchlist.txt`, plus any ticker in `data/ira/order.csv` (pending orders) that isn't already covered above. Pending-order tickers matter because they're names the user has *already decided* to act on; their state needs fresh research even if they're not in the watchlist file.
 
 The research scope = union of (holdings ∪ watchlist ∪ pending-order tickers). Deduplicate by ticker.
 

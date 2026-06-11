@@ -1,6 +1,6 @@
 """Deterministic price-range check for open orders.
 
-For each row in data/order.csv:
+For each row in data/ira/order.csv (reconcile runs on the IRA account):
   - If today > expires      → status: "expired"
   - Else fetch yfinance daily OHLC from date_added to today, and:
       - BUY  @ X: fills if any daily low  ≤ X → status: "likely_filled"

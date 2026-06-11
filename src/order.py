@@ -4,7 +4,7 @@ Each open-orders tab shows one decision metric:
 - Sell tab: "Gain" — % return if executed at the limit price vs current avg cost basis.
 - Buy tab: "vs ATH" — % the limit price is below all-time high (negative number).
 
-History tab shows past fills from `data/transactions.csv`, newest first.
+History tab shows past fills from the account's `transactions.csv`, newest first.
 """
 
 import pandas as pd

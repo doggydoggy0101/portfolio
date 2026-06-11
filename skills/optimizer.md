@@ -1,11 +1,11 @@
 # Skill: optimizer
 
-The final step of the daily flow. Reads all prior journal sections + rules + portfolio state, generates a list of proposed order adjustments, walks them with the user one at a time, appends agreed orders to `data/order.csv`, and logs the full session to today's journal.
+The final step of the daily flow. Reads all prior journal sections + rules + portfolio state, generates a list of proposed order adjustments, walks them with the user one at a time, appends agreed orders to `data/ira/order.csv`, and logs the full session to today's journal.
 
 Assumes by the time it runs:
 - Today's journal has `# Reconciliation`, `# Portfolio state`, `# YouTube research` (with cross-channel synthesis subsections), `# Independent research`, `# Regularizer` sections.
-- `data/transactions.csv` has been updated by reconcile.md to reflect confirmed fills.
-- `data/order.csv` has been updated by reconcile.md (filled rows removed, still-pending rows kept).
+- `data/ira/transactions.csv` has been updated by reconcile.md to reflect confirmed fills.
+- `data/ira/order.csv` has been updated by reconcile.md (filled rows removed, still-pending rows kept).
 - `src/position.py` is available with `compute_exit_ladder(ticker)` for precise per-position 2-tier sell limits.
 
 ## Inputs
@@ -14,8 +14,8 @@ Assumes by the time it runs:
 - `skills/youtube.md` — YouTuber conviction tables (the "current mindset" of each tracked YouTuber).
 - Today's journal — all prior sections.
 - Previous journal — one-day-back context (rejected proposals, prior session's decisions, recurring user concerns).
-- `data/transactions.csv` — holdings, cost basis, realized P&L.
-- `data/order.csv` — pending orders not yet filled.
+- `data/ira/transactions.csv` — holdings, cost basis, realized P&L.
+- `data/ira/order.csv` — pending orders not yet filled.
 - `data/watchlist.txt` — candidate tickers.
 
 ## Process
@@ -33,7 +33,7 @@ Tickers that warrant consideration today:
 Walk every ticker through the rule checks defined in `skills/rule.md`:
 
 - **Position size check.** Over cap? At cap? Room to add? Cap violations are *warnings* (per rule.md cap-as-warning rule), not forced trims — surface them and offer an *optional* accelerated trim; the default exit ladder will rebalance naturally otherwise.
-- **Default exit ladder maintenance.** For every non-core held position, verify a current 2-tier sell ladder exists in `data/order.csv`. Call `compute_exit_ladder(ticker)` for the precise tier 1 / tier 2 prices. Propose new ladders for positions without one; propose refreshes when avg_cost has changed (e.g., after an add).
+- **Default exit ladder maintenance.** For every non-core held position, verify a current 2-tier sell ladder exists in `data/ira/order.csv`. Call `compute_exit_ladder(ticker)` for the precise tier 1 / tier 2 prices. Propose new ladders for positions without one; propose refreshes when avg_cost has changed (e.g., after an add).
 - **Opinion filter.** Count favorable signals from `{each YouTuber, online research}` — at least 2 for mean-reversion, at least 3 for momentum (rule scales with N YouTubers). "Favorable" per the table in rule.md.
 - **Regularizer veto.** Parse `**Top flag (hard veto): TICKER**` from today's regularizer section. If a candidate ticker matches the top flag, disqualify it.
 - **Quality filter** (mean-reversion) — does the entry criterion hold?
@@ -112,7 +112,7 @@ When all proposals have been decided, write a `# Optimizer session` block to tod
 ## Discussion notes
 - <any substantive points raised during the chat>
 
-## Appended to data/order.csv
+## Appended to data/ira/order.csv
 - date_added=YYYY-MM-DD, ticker=..., action=..., price=..., quantity=..., expires=..., note=...
 - (one line per agreed order)
 
@@ -121,9 +121,9 @@ When all proposals have been decided, write a `# Optimizer session` block to tod
 - <TICKER> — user said modify but never finalized the new terms
 ```
 
-### 7. Write to data/order.csv
+### 7. Write to data/ira/order.csv
 
-For every agreed (or modified-then-agreed) proposal, append a row to `data/order.csv`. Columns: `date_added,ticker,action,price,quantity,expires,note`.
+For every agreed (or modified-then-agreed) proposal, append a row to `data/ira/order.csv`. Columns: `date_added,ticker,action,price,quantity,expires,note`.
 
 - `date_added` — today's date.
 - `note` — optional brief reason, e.g., "exit trigger fired" or "dip entry per rules".
@@ -160,7 +160,7 @@ A proposal must never:
 
 - Does not fetch new data — everything it needs is already in today's journal + skills/youtube.md + data/*.csv.
 - Does not run other skills.
-- Does not place orders at the broker — output is just `data/order.csv` rows.
+- Does not place orders at the broker — output is just `data/ira/order.csv` rows.
 - Does not modify `skills/rule.md`, `skills/youtube.md`, or any other skill file.
 - Does not propose vetoed names.
 - Does not auto-decide. Every order requires explicit user yes.

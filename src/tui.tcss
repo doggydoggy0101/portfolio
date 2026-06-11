@@ -5,8 +5,45 @@ Screen {
     color: #c0caf5;
 }
 
+/* Bottom bar: account switch (left) + Reload/Quit actions + clock (right).
+   All controls are flat single-row buttons; active account is highlighted. */
+#bottombar {
+    height: 1;
+    background: #1d202f;
+}
+#bottombar .barbtn {
+    height: 1;
+    min-width: 0;
+    min-height: 1;
+    border: none;
+    background: #1d202f;
+    color: #565f89;
+    padding: 0 2;
+    margin: 0;
+    text-style: none;
+}
+#bottombar .barbtn:hover {
+    color: $foreground;
+    background: #2a2f45;
+}
+#bottombar .barbtn.active {
+    color: $foreground;
+    background: $accent;
+    text-style: bold;
+}
+#bottombar > #bar-spacer {
+    width: 1fr;
+    background: #1d202f;
+}
+#bottombar > #clock {
+    width: auto;
+    color: #c0caf5;
+    content-align: right middle;
+    padding: 0 2;
+}
+
 #main {
-    height: 100%;
+    height: 1fr;
     padding: 1;
 }
 #left {
@@ -93,6 +130,3 @@ HoldingsView > #range-tabs Tab.-active {
 HoldingsView > #charts-scroll {
     height: 1fr;
 }
-
-Header { background: #1d202f; color: #c0caf5; }
-Footer { background: #1d202f; color: #c0caf5; }
