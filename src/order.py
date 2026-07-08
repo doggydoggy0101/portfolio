@@ -1,7 +1,8 @@
 """Orders pane tables: open orders (filtered by action) + transaction history.
 
 Each open-orders tab shows one decision metric:
-- Sell tab: "Gain" — % return if executed at the limit price vs current avg cost basis.
+- Sell tab: "vs S&P 500" — % the position beats SPY-since-entry if executed at the limit
+  (rule.md ladder: tier 1 reads +10.00%, tier 2 +21.00% — the ×1.10 tiers compound).
 - Buy tab: "vs ATH" — % the limit price is below all-time high (negative number).
 
 History tab shows past fills from the account's `transactions.csv`, newest first.
@@ -17,11 +18,17 @@ def _extra_cell(
     action: str,
     positions: pd.DataFrame | None,
     ath: dict[str, float] | None,
+    spy_since: dict[str, float] | None,
 ) -> str:
-    """% gain (sell, green) vs avg cost OR % vs ATH (buy, red)."""
+    """% vs SPY-since-entry (sell, green) OR % vs ATH (buy, red)."""
     if action == "sell" and positions is not None and row["ticker"] in positions.index:
         avg = positions.loc[row["ticker"], "avg_cost"]
-        pct = (row["price"] - avg) / avg * 100
+        gain = row["price"] / avg - 1.0
+        if spy_since and row["ticker"] in spy_since:
+            # (1+gain)/(1+spy) - 1: excess over SPY-since-entry, matches compute_exit_ladder
+            pct = ((1.0 + gain) / (1.0 + spy_since[row["ticker"]]) - 1.0) * 100
+        else:
+            pct = gain * 100  # SPY data unavailable: plain gain vs avg cost
         sign = "+" if pct >= 0 else ""
         return f"[green]{sign}{pct:.2f}%[/green]"
     if action == "buy" and ath and row["ticker"] in ath:
@@ -38,13 +45,14 @@ def build_orders_table(
     *,
     positions: pd.DataFrame | None = None,
     ath: dict[str, float] | None = None,
+    spy_since: dict[str, float] | None = None,
 ) -> Table:
     """Filter to one action ('buy' or 'sell') and render as a compact table.
 
-    Column order: ticker, Price, Qty, Expires, Gain/vs ATH (rightmost).
+    Column order: ticker, Price, Qty, Expires, vs S&P 500/vs ATH (rightmost).
     """
     filtered = orders[orders["action"] == action] if not orders.empty else orders
-    extra_label = "Gain" if action == "sell" else "vs ATH"
+    extra_label = "vs S&P 500" if action == "sell" else "vs ATH"
 
     table = Table(box=box.ROUNDED)
     table.add_column("", justify="left")  # ticker, no color
@@ -63,7 +71,7 @@ def build_orders_table(
             f"${r['price']:,.2f}",
             str(r["quantity"]),
             r["expires"].strftime("%Y-%m-%d"),
-            _extra_cell(r, action, positions, ath),
+            _extra_cell(r, action, positions, ath, spy_since),
         )
 
     return table

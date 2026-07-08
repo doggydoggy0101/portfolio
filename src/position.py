@@ -162,26 +162,28 @@ def _compute_cash(
     return total_dep + buys + sells + div
 
 
-def compute_sp500_since_entry(ticker: str, today=None) -> float:
-    """Dollar-weighted SPY total return since each buy of `ticker`.
+def compute_sp500_since_entry_bulk(
+    trades: pd.DataFrame, tickers: list[str] | None = None, today=None
+) -> dict[str, float]:
+    """Dollar-weighted SPY total return since each buy, for many tickers at once.
 
+    One SPY history fetch covers all tickers (bulk-fetch convention for the TUI).
     For positions with multiple buys at different dates, weight each buy's
-    SPY return by its dollar cost. Returns a fraction (0.05 = 5%).
+    SPY return by its dollar cost. Returns {ticker: fraction} (0.05 = 5%).
     Uses SPY auto-adjusted close (dividends reinvested) as the SP500 proxy.
     """
     from datetime import date as _date
 
     import yfinance as yf
 
-    from loader import load_transactions
-
     if today is None:
         today = _date.today()
 
-    trades = load_transactions()
-    buys = trades[(trades["ticker"] == ticker) & (trades["action"] == "buy")]
+    buys = trades[trades["action"] == "buy"]
+    if tickers is not None:
+        buys = buys[buys["ticker"].isin(tickers)]
     if buys.empty:
-        return 0.0
+        return {}
 
     earliest = buys["date"].min().date()
     spy = yf.Ticker("SPY").history(
@@ -190,24 +192,35 @@ def compute_sp500_since_entry(ticker: str, today=None) -> float:
         auto_adjust=True,
     )["Close"]
     if spy.empty:
-        return 0.0
+        return {}
     # Normalize SPY index to naive dates so we can compare with buy dates
     spy.index = spy.index.tz_localize(None).normalize()
     spy_today = float(spy.iloc[-1])
 
-    total_basis = 0.0
-    weighted = 0.0
-    for _, t in buys.iterrows():
-        buy_date = pd.Timestamp(t["date"]).normalize()
-        cost = abs(float(t["amount"]))  # positive number for cost basis
-        on_or_after = spy[spy.index >= buy_date]
-        if on_or_after.empty:
-            continue
-        spy_at_buy = float(on_or_after.iloc[0])
-        ret = spy_today / spy_at_buy - 1.0
-        weighted += ret * cost
-        total_basis += cost
-    return weighted / total_basis if total_basis > 0 else 0.0
+    out: dict[str, float] = {}
+    for ticker, group in buys.groupby("ticker"):
+        total_basis = 0.0
+        weighted = 0.0
+        for _, t in group.iterrows():
+            buy_date = pd.Timestamp(t["date"]).normalize()
+            cost = abs(float(t["amount"]))  # positive number for cost basis
+            on_or_after = spy[spy.index >= buy_date]
+            if on_or_after.empty:
+                continue
+            spy_at_buy = float(on_or_after.iloc[0])
+            ret = spy_today / spy_at_buy - 1.0
+            weighted += ret * cost
+            total_basis += cost
+        out[str(ticker)] = weighted / total_basis if total_basis > 0 else 0.0
+    return out
+
+
+def compute_sp500_since_entry(ticker: str, today=None) -> float:
+    """Single-ticker convenience wrapper around `compute_sp500_since_entry_bulk`."""
+    from loader import load_transactions
+
+    result = compute_sp500_since_entry_bulk(load_transactions(), [ticker], today=today)
+    return result.get(ticker, 0.0)
 
 
 def compute_exit_ladder(ticker: str, today=None) -> dict:

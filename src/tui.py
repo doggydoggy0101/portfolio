@@ -22,7 +22,7 @@ from loader import (
 )
 from order import build_history_table, build_orders_table
 from portfolio import compute_positions
-from position import build_position_view, build_positions_table
+from position import build_position_view, build_positions_table, compute_sp500_since_entry_bulk
 from price import fetch_ath, fetch_prices
 
 # Display labels for the account switch (keys match loader.ACCOUNTS).
@@ -164,6 +164,7 @@ class OrdersView(Vertical):
         ath: dict[str, float],
         trades: pd.DataFrame,
         account: str = "ira",
+        spy_since: dict[str, float] | None = None,
     ) -> None:
         """Wire data in. Called from `StockTUI.on_mount` after ATH is fetched.
         Idempotent — clears existing tables before mounting fresh ones, so it
@@ -178,7 +179,13 @@ class OrdersView(Vertical):
         sell.remove_children()
         history.remove_children()
         buy.mount(Static(build_orders_table(orders, "buy", positions=positions, ath=ath)))
-        sell.mount(Static(build_orders_table(orders, "sell", positions=positions, ath=ath)))
+        sell.mount(
+            Static(
+                build_orders_table(
+                    orders, "sell", positions=positions, ath=ath, spy_since=spy_since
+                )
+            )
+        )
         history.mount(Static(build_history_table(trades)))
 
 
@@ -350,8 +357,16 @@ class StockTUI(App):
         dividends = load_dividends(account)
         orders = load_orders(account)
         df = build_position_view(trades)
-        positions = compute_positions(trades)  # has avg_cost — used for sell-order Gain%
+        positions = compute_positions(trades)  # has avg_cost — used for sell-order vs-SPY%
         cash = deposits["amount"].sum() + trades["amount"].sum() + dividends["amount"].sum()
+
+        # SPY-since-entry for sell-order tickers (one SPY fetch for all of them).
+        sell_order_tickers = (
+            list(set(orders[orders["action"] == "sell"]["ticker"])) if not orders.empty else []
+        )
+        spy_since = (
+            compute_sp500_since_entry_bulk(trades, sell_order_tickers) if sell_order_tickers else {}
+        )
 
         # Fetch ATH once for every ticker we'll need across all panes.
         held = set(df.index)
@@ -379,7 +394,9 @@ class StockTUI(App):
         )
 
         # Open Orders pane (always refreshed; populate is idempotent)
-        self.query_one("#orders", OrdersView).populate(positions, ath, trades, account=account)
+        self.query_one("#orders", OrdersView).populate(
+            positions, ath, trades, account=account, spy_since=spy_since
+        )
 
         if refresh_charts:
             # Clear any existing charts (account switch / re-mount) before rebuilding.
