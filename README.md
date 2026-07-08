@@ -5,8 +5,24 @@ Two surfaces sharing one folder:
 - **TUI** — visual dashboard: holdings, performance, open orders, charts. Read-only.
 - **Claude Code** — drives the daily session. Reads doctrine + state + opinions, proposes orders, logs decisions.
 
+## Daily session
 
-## Run
+Open Claude Code in this repo and paste:
+
+```
+Read CLAUDE.md and run today's routine.
+```
+
+What happens (full flow in `CLAUDE.md`):
+
+1. If today's journal (`journal/YYYY-MM-DD.md`) already exists → read it, wait for direction.
+2. Otherwise: reconcile fills → portfolio state → creator summaries → independent web research → regularizer dissent → optimizer.
+3. Optimizer walks proposed orders one-at-a-time; agreed orders append to `data/ira/order.csv`; you place them at your broker yourself — nothing auto-trades.
+4. The whole session (proposals + decisions + reasoning) is logged to today's journal.
+
+First time here? Start with **`SETUP.md`** — this repo is a template: the code ships, but the data, accounts, and trading doctrine (`skills/rule.md`) are personal and need a one-time setup pass.
+
+## Run the TUI
 
 ```
 pip install -r requirements.txt
@@ -20,6 +36,7 @@ Keys: `Esc` quits, `Ctrl+R` reloads.
 ```
 .
 ├── CLAUDE.md             AI orchestrator; daily session flow lives here
+├── SETUP.md              first-run onboarding for fresh clones (data + doctrine)
 ├── README.md             this file
 ├── main.py               TUI launcher (one-liner)
 ├── requirements.txt
@@ -98,14 +115,3 @@ date,amount,notes
 
 One ticker per line, `#` for comments. Convention: held positions are also listed here so the watchlist represents the full universe of names the optimizer should consider.
 
-## Daily session
-
-See `CLAUDE.md` for the full flow. Brief version:
-
-1. Open Claude Code in a terminal in this repo.
-2. Ask for the morning brief.
-3. CLAUDE.md checks if `journal/YYYY-MM-DD.md` exists.
-   - **Yes** → read it, wait for direction.
-   - **No** → run reconcile → position → youtube → online → regularizer → optimizer.
-4. Optimizer walks proposed orders one-at-a-time. Agreed orders append to `data/ira/order.csv`.
-5. Optimizer logs the session (proposals + decisions + reasoning) to today's journal.

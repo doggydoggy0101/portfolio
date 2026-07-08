@@ -10,6 +10,8 @@ Personal investing copilot. Daily-loop system: ingest world + state + doctrine �
 
 When the user opens a new session and triggers the daily run (asks for "morning brief" / "let's start" / "daily run" / similar):
 
+0. **Fresh clone?** If the account folders under `data/` are missing or empty, this repo was just cloned as a template — do **not** run the daily flow. Read `SETUP.md` and walk the user through onboarding (their broker format, accounts, and doctrine will differ from the author's).
+
 1. **Check if today's journal (`journal/YYYY-MM-DD.md`) exists.**
 
 2. **If YES** — this is a re-open of an already-started day:
