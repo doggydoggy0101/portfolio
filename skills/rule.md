@@ -21,12 +21,19 @@ Not a goal: huge multipliers, getting rich fast, market timing, predicting reces
 ## Portfolio structure
 
 ```
-Total portfolio
-├─ ~50%  Core sleeve   (VOO; never sold, never traded against)
-└─ ~50%  Active sleeve (mean-reversion + momentum buckets + cash)
+Total portfolio (measured across BOTH accounts — IRA + General)
+├─ ~50%  Core sleeve   (VOO; long-term home = taxable General account)
+└─ ~50%  Active sleeve (mean-reversion + momentum buckets + cash; home = Roth IRA)
 ```
 
-**Core sleeve (VOO).** Untouchable. Bought once, held forever. This is the benchmark itself. Active-sleeve sales never rebalance back into the core; new deposits *can* go to either core or active.
+**The 50/50 split is measured across the combined IRA + General total**, not the IRA alone (decided 2026-06-15). Tax logic drives the placement: the buy-and-hold core belongs in the taxable account (no realized gains for decades), the high-turnover active sleeve belongs in the tax-free Roth.
+
+**Core sleeve (VOO).** Bought to hold for the long term; the benchmark itself. Active-sleeve sales never rebalance back into the core; new deposits *can* go to either core or active.
+
+- **Intended end-state:** all core VOO sits in the **General** (taxable) account; the **IRA** is purely the active sleeve.
+- **Transition (freeze-and-migrate):** IRA VOO is **frozen** — no new adds — and is **no longer "untouchable."** It is a migration source: as General buys VOO (from deposits / its own limit orders), the optimizer may sell matching IRA VOO (tax-free) and redeploy that cash into IRA active names — **but only when an active buy actually qualifies under the rules below.** Never sell IRA VOO into idle cash; the overvaluation brake + cash floor still gate deployment, so the migration paces itself to real opportunities.
+- **Do not proactively sell IRA VOO just to "free cash"** — there must be a qualifying active buy on the other side of the trade. Combined VOO stays ~50% throughout; it just moves IRA → General.
+- **Sleeve math is unchanged** because it's anchored to the combined total: active sleeve ≈ 50% of combined, so the 20%-of-active per-name cap and the 5%-of-total sleep test (below) still hold even as the IRA tilts fully active.
 
 **Active sleeve.** The experiment. Internally split into two buckets and a cash float:
 

@@ -31,8 +31,10 @@ Triggers are session-based, not time-based. The user closes and re-opens; the jo
 
 There are **two accounts**, each with its own data folder under `data/` (gitignored):
 
-- **`ira`** (`data/ira/`) — the Roth IRA. This is the **actively managed** account: the daily loop, sleeves, exit ladders, cash floor, and the entire `skills/rule.md` doctrine apply *only* here. Gains are tax-free (sell freely; no cap-gains considerations).
-- **`general`** (`data/general/`) — the **taxable** brokerage account. **Passive** by design: buy-and-hold VOO for the long term. No sleeves, no ladders, no daily optimizer. It shows in the TUI and tracks performance, but the daily loop does **not** manage it. Being taxable, sales here *do* have capital-gains consequences (mostly moot for buy-and-hold VOO).
+- **`ira`** (`data/ira/`) — the Roth IRA. This is the **actively managed** account: the daily loop, sleeves, exit ladders, cash floor, and the entire `skills/rule.md` doctrine apply *only* here. Gains are tax-free (sell freely; no cap-gains considerations) — which is exactly why this is the **home for the active/trading sleeve**.
+- **`general`** (`data/general/`) — the **taxable** brokerage account. **Passive** by design: buy-and-hold VOO for the long term. No sleeves, no ladders, no daily optimizer. It shows in the TUI and tracks performance, but the daily loop does **not** manage it. Being taxable, sales here *do* have capital-gains consequences (mostly moot for buy-and-hold VOO) — which is exactly why this is the **long-term home for the core VOO**.
+
+**Core/active split is measured across *both* accounts (decided 2026-06-15).** The ~50% VOO core target in `skills/rule.md` applies to the **combined** IRA + General total, not the IRA alone. The intended end-state: VOO core lives in the (taxable) General account; the (tax-free) IRA holds the active/trading sleeve. **Transition = freeze-and-migrate:** IRA VOO is **frozen** (no new adds; it is no longer "untouchable") and becomes a migration source — as General accumulates VOO via deposits, matching IRA VOO is sold (tax-free) and redeployed into IRA active names, *but only when an active buy actually passes the rules* (no idle-cash dumps). Net combined VOO stays ~50% throughout; it just changes address. As of 2026-06-15 combined VOO ≈ 48% (all still in the IRA), so this is relocation, not accumulation.
 
 The daily session flow (reconcile → position → … → optimizer) runs against **`ira` only**. `loader.ACCOUNTS = ("ira", "general")`, default account is `"ira"`.
 
