@@ -36,7 +36,8 @@ Walk every ticker through the rule checks defined in `skills/rule.md`:
 - **Default exit ladder maintenance.** For every non-core held position, verify a current 2-tier sell ladder exists in `data/ira/order.csv`. Call `compute_exit_ladder(ticker)` for the precise tier 1 / tier 2 prices. Propose new ladders for positions without one; propose refreshes when avg_cost has changed (e.g., after an add).
 - **Hard lines (pass/fail).** Per rule.md: material drawdown, quality, no earnings collapse, **not overvalued** (analyst PT ≥ price + 10% — a bright line), and the regularizer top-flag veto. If any fails, it's not actionable — but keep it on the discussion slate, marked blocked + which line failed.
 - **Conviction read → size.** Once the hard lines pass, weigh the favorable opinion evidence (creators who *cover* the name + degree of analyst upside; a creator who doesn't cover it counts as nothing). Translate to a **strong / moderate / thin** read and size accordingly (full ~5% / starter ~2.5% / toe-hold ~1-2%). State the weighting in writing. Conviction sets size, not yes/no.
-- **Regularizer veto.** Parse `**Top flag (hard veto): TICKER**` from today's regularizer section. If a candidate ticker matches the top flag, disqualify it.
+- **Regularizer veto.** Parse `**Top flag (hard veto): TICKER**` from today's regularizer section. If a candidate ticker matches the top flag, disqualify it. **Exception (veto decay, added 2026-10-06):** if the regularizer's section instead shows a `**Veto streak: N sessions, no fresh data — downgrading to warning**` line for that ticker (per `skills/regularizer.md`), the name is not disqualified — propose it, but cap sizing at thin/toehold (~1-2%) and log the persistent regularizer concern in the proposal.
+- **Lapsed-by-success carve-out.** If a candidate fails hard line 4 (not overvalued) only because its own price has risen since it last cleared that line within the past 60 days (analyst PT roughly flat/raised, not cut), it isn't dead — re-route it to the momentum bucket (smaller cap, no adds) per `skills/rule.md`.
 - **Quality filter** (mean-reversion) — does the entry criterion hold?
 - **Catalyst** (momentum) — fresh driver?
 - **Exit trigger math** (for held) — position return ≥ SP500-since-entry-return + 10%? Use `compute_sp500_since_entry(ticker)` from `src/position.py` for the precise per-position SPY-since-entry; do NOT use a flat assumption.
@@ -76,7 +77,7 @@ B) Position management — held / orders:
   (If none: "Holdings in compliance; no management actions today.")
 
 ---
-Item 1 of N: <ACTION> <TICKER>
+Item 1 of N: <ACTION> <QTY> <TICKER> @ $<PRICE>
 
 **Why:** <which rule fired, with the math — or, for a new idea, the setup>
 **Conviction read:** <strong / moderate / thin — which sources favorable, how weighted>
@@ -87,8 +88,12 @@ Item 1 of N: <ACTION> <TICKER>
 **Suggested expires:** <date>
 **What would change this view:** <falsifiable condition>
 
-→ Awaiting user response (yes / no / modify / discuss).
+My recommendation: <a direct, declarative stance — "yes, do this" / "pass" / "size it down to X" — not a question>.
+
+→ Awaiting your response (yes / no / modify).
 ```
+
+**Format discipline (2026-09-15):** The title line must state the concrete action, quantity, ticker, and price — `SELL 1 AMZN @ $281`, not just `SELL AMZN`. One item per message, strictly sequential (no batching two proposals into one message, even when they're both "easy" ones like routine ladder hygiene). End with a stated recommendation, not an open-ended "want to discuss?" — but a recommendation is never the same as executing: nothing gets written to `order.csv` until the user's own next message says yes/agrees to a modify.
 
 The Ideas group is the new contract: the optimizer **proactively recommends** candidates worth a look (with the case against attached) — the user no longer has to invent buys just to get a pushback. Recommending is not urging: every idea ships with its own dissent, and "nothing compelling today" is a valid, common slate.
 
@@ -103,6 +108,8 @@ For each proposal, take user response:
 - **Override** — when the user directs a buy that **fails a hard line** (overvalued, regularizer veto, below the cash floor) or goes against the conviction read, do it if they insist — it's an advisory system, the user's call — but **log it as an explicit override**, not a silent rule-break: name which line it broke, the user's reason, and the optimizer's one-line dissent. Overrides are *tracked* (see below), not forbidden.
 
 After proposal N is decided, present proposal N+1. **Do not batch.** Sequential.
+
+**Session shape (2026-09-15):** three phases, in order — (1) the opening slate (step 4) summarizes *everything*, actionable and context-only alike, so the user knows the shape of the session up front; (2) walk only the actionable items one at a time per this step; (3) once every actionable item is decided, close with a short recap of the **no-action / context-only** items from the opening slate (a held position that's fine as-is, a regularizer flag that didn't change anything) — a brief last-look, not a re-litigation, so nothing quietly falls off the user's radar between the opening summary and the end-of-session write-up.
 
 **Overrides are a feature, not a failure.** They give the user agency while keeping the discipline visible: because each is logged with its blocker and the dissent, the **monthly/quarterly review** (per rule.md "revisit based on what the journal track record shows") can ask the only question that matters — did the overrides beat just holding VOO? That turns friction into evidence, and tells us whether to relax a rule or trust it more.
 
@@ -140,12 +147,25 @@ When all proposals have been decided, write a `# Optimizer session` block to tod
 
 ### 7. Write to data/ira/order.csv
 
-For every agreed (or modified-then-agreed) proposal, append a row to `data/ira/order.csv`. Columns: `date_added,ticker,action,price,quantity,expires,note`.
+**Always use `src/order_writer.py`, never a hand-typed text edit.** Hand-editing the file as raw text repeatedly let a comma slip into the unquoted `note` column and crash the loader/TUI. The writer appends via pandas, which auto-quotes any field containing a comma, so this is no longer a live failure mode.
 
-- `date_added` — today's date.
-- `note` — optional brief reason, e.g., "exit trigger fired" or "dip entry per rules".
+For every agreed (or modified-then-agreed) proposal:
 
-Cancels remove the existing row, not append. Modifications can either be implemented as remove-and-append or as an in-place edit.
+```bash
+python -m src.order_writer append --account ira --ticker TICKER --action buy|sell \
+    --price PRICE --quantity QTY --expires YYYY-MM-DD --note "reason"
+```
+
+- `date_added` defaults to today; override with `--date-added` if needed.
+- `note` — optional brief reason, e.g., "exit trigger fired" or "dip entry per rules". Commas are fine now — write natural prose.
+
+Cancels remove the existing row, not append:
+
+```bash
+python -m src.order_writer remove --account ira --ticker TICKER --action buy|sell --price PRICE
+```
+
+Modifications are a remove of the old row + an append of the new one (two calls).
 
 ## Proposal generation rules
 
@@ -161,7 +181,7 @@ A proposal must never:
 - Recommend an action that violates a hard constraint (long-only, no options, US-only, etc.).
 - Exceed the per-name position cap.
 - Push cash below the 5% floor.
-- Include a vetoed ticker (top flag in regularizer).
+- Include a vetoed ticker (top flag in regularizer) — unless the veto has decayed per `skills/rule.md`'s veto-decay provision, in which case it's proposable at thin/toehold size only.
 - Add to a momentum position (momentum is one-shot per rule.md).
 
 ## Persona / tone in chat
@@ -188,7 +208,7 @@ A proposal must never:
 - If applying any proposal would put **active-sleeve cash below the 5% floor**, the proposal is deferred ("waiting for cash to rebuild from a trim").
 - If proposing **adds** to a position, the math respects the cap and the 3-add limit (per rule.md mean-reversion).
 - If a held position is **over the per-name cap**, the optimizer **surfaces the warning every session** and **offers an optional accelerated trim** (lower-priced tier than the default ladder). It does **not** force a trim — without explicit user yes, the position rides until the default exit ladder fires. (Per rule.md cap-as-warning rule.)
-- The regularizer top flag is a hard veto, no override.
+- The regularizer top flag is a hard veto, no override — unless it has decayed (10+ consecutive sessions with no fresh reasoning, per `skills/rule.md` / `skills/regularizer.md`), in which case it's a warning requiring thin/toehold sizing only, not a disqualification.
 
 ## In-session re-open behavior
 

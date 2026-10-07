@@ -28,9 +28,9 @@ Run only on the **first session of a new day** (per CLAUDE.md daily flow).
      > "Order X (BUY/SELL N shares of TICKER @ $LIMIT) looks like it could have filled on YYYY-MM-DD — that day's [low/high] was $PRICE. Did this actually fill on your broker?"
 
 3. **On user response:**
-   - **Yes:** ask for actual fill price (often a few cents off the limit) and fill date. Append a row to `data/ira/transactions.csv` and remove the row from `data/ira/order.csv`.
+   - **Yes:** ask for actual fill price (often a few cents off the limit) and fill date. Append a row to `data/ira/transactions.csv` and remove the row from `data/ira/order.csv` via `python -m src.order_writer remove --account ira --ticker TICKER --action buy|sell --price LIMIT` (never a hand-typed text edit — see `skills/optimizer.md` § 7 for why).
    - **No:** leave the row in `data/ira/order.csv` unchanged (the broker rejected, or partial fill is still pending).
-   - **Expired/cancel:** remove the row from `data/ira/order.csv` with no transaction append.
+   - **Expired/cancel:** remove the row via the same `src.order_writer remove` command, no transaction append.
 
 4. **Log a `# Reconciliation` section** at the top of today's journal:
    - Number of open orders checked.

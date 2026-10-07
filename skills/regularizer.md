@@ -48,6 +48,17 @@ These are doctrine, not opinions. Regularizer does not question them. See `skill
 
 The `**Top flag (hard veto): TICKER**` line is **load-bearing for `skills/rule.md`**. Rules say: "the *top* named consensus-trade-risk is a hard veto." Optimizer parses this exact line to identify the vetoed ticker. If there's no single dominant consensus-trade-risk today, write: `**Top flag (hard veto): none** — no single name stands out as the day's consensus-trade trap.`
 
+### Veto decay check (added 2026-10-06)
+
+Before naming a top-flag ticker, check how many **consecutive prior sessions** (in which that ticker was a live candidate) it was *also* the top-flag veto — scan back through recent `journal/*.md` files for the same `**Top flag (hard veto): TICKER**` line.
+
+- **Under 10 consecutive sessions:** proceed normally.
+- **10+ consecutive sessions on the same ticker:** you must write **genuinely fresh reasoning** this session — specifically naming what's new in *today's* journal (a new data point, a changed metric, a creator reversal) and explicitly weighing it against the standing concern, not just restating the standing concern in new words. Add a line: `**Veto streak: N sessions.** <fresh reasoning, naming the new data point>`.
+  - If you can produce real fresh reasoning and the verdict is still veto: the veto holds, logged as above. The streak counter effectively resets (next session starts counting fresh reasoning instances, not the original streak).
+  - If there's genuinely nothing new to weigh — today's journal doesn't add anything the standing concern didn't already cover — say so explicitly: `**Veto streak: N sessions, no fresh data — downgrading to warning per rule.md veto decay.** <ticker>` and move the name to the secondary-consensus-claims list instead of the top-flag line. The optimizer then treats it as proposable at thin/toehold size only (per `skills/rule.md`), not disqualified.
+
+This is a check on the *verdict*, not the research — today's research still runs in full regardless. The point is only to stop a years-old standing concern from blocking a name indefinitely without ever being re-examined against new facts.
+
 ## Tone discipline
 
 - **"Worth considering…"** / **"On the other hand…"** / **"If X is wrong, then…"** — these are the registers.
