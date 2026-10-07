@@ -186,11 +186,15 @@ def compute_sp500_since_entry_bulk(
         return {}
 
     earliest = buys["date"].min().date()
-    spy = yf.Ticker("SPY").history(
-        start=earliest.strftime("%Y-%m-%d"),
-        end=(today + pd.Timedelta(days=1)).strftime("%Y-%m-%d"),
-        auto_adjust=True,
-    )["Close"]
+    spy = (
+        yf.Ticker("SPY")
+        .history(
+            start=earliest.strftime("%Y-%m-%d"),
+            end=(today + pd.Timedelta(days=1)).strftime("%Y-%m-%d"),
+            auto_adjust=True,
+        )["Close"]
+        .dropna()
+    )  # today's bar can be NaN intraday before it's finalized
     if spy.empty:
         return {}
     # Normalize SPY index to naive dates so we can compare with buy dates

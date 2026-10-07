@@ -42,24 +42,22 @@ def fetch_latest_bar_time(ticker: str) -> pd.Timestamp:
 def fetch_prices(tickers: list[str]) -> pd.DataFrame:
     """Return DataFrame indexed by ticker with columns price/prev_close/ts. Parallel.
 
-    Timestamps are pandas Timestamps in market timezone (US/Eastern for US equities).
-    For daily bars, the timestamp is the start of the trading day; the close
-    value reflects the latest trade (~15-min delay intraday, official close after).
+    Uses `fast_info` (Yahoo's live quote cache) rather than the daily `history()`
+    bar: history()'s current-day row is often NaN until the bar is finalized,
+    which silently fell back to the prior day's close — up to a full day stale.
+    fast_info.lastPrice / regularMarketPreviousClose track the actual latest quote.
     """
 
     def _one(t: str) -> dict:
-        hist = yf.Ticker(t).history(period="5d", auto_adjust=False)
-        closes = hist["Close"].dropna()
-        price = float(closes.iloc[-1]) if len(closes) >= 1 else float("nan")
-        prev = float(closes.iloc[-2]) if len(closes) >= 2 else float("nan")
-        price_ts = closes.index[-1] if len(closes) >= 1 else pd.NaT
-        prev_ts = closes.index[-2] if len(closes) >= 2 else pd.NaT
+        fi = yf.Ticker(t).fast_info
+        price = fi.get("lastPrice", float("nan"))
+        prev = fi.get("regularMarketPreviousClose", float("nan"))
         return {
             "ticker": t,
-            "price": price,
-            "prev_close": prev,
-            "price_ts": price_ts,
-            "prev_ts": prev_ts,
+            "price": float(price) if price is not None else float("nan"),
+            "prev_close": float(prev) if prev is not None else float("nan"),
+            "price_ts": pd.Timestamp.now(),
+            "prev_ts": pd.NaT,
         }
 
     with ThreadPoolExecutor(max_workers=_MAX_WORKERS) as ex:
